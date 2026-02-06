@@ -1,0 +1,154 @@
+# SEAP Assistant - On-Premise Docker Compose
+# Usage: docker-compose -f docker/docker-compose.yml up -d
+
+version: '3.8'
+
+services:
+  # ==================== DATABASE ====================
+  postgres:
+    image: postgres:16-alpine
+    container_name: seap-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: seap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-seap_secure_password_change_me}
+      POSTGRES_DB: seap_assistant
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seap -d seap_assistant"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== STORAGE (MinIO - S3 Compatible) ====================
+  minio:
+    image: minio/minio:latest
+    container_name: seap-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ==================== REDIS (Queue & Cache) ====================
+  redis:
+    image: redis:7-alpine
+    container_name: seap-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== APPLICATION ====================
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: seap-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://seap:${POSTGRES_PASSWORD:-seap_secure_password_change_me}@postgres:5432/seap_assistant
+      DIRECT_URL: postgresql://seap:${POSTGRES_PASSWORD:-seap_secure_password_change_me}@postgres:5432/seap_assistant
+
+      # Auth
+      AUTH_SECRET: ${AUTH_SECRET:-generate-a-secure-secret-with-openssl}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+
+      # Storage (MinIO)
+      R2_ENDPOINT: http://minio:9000
+      R2_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      R2_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      R2_BUCKET_NAME: seap-documents
+
+      # AI (optional - for local LLM)
+      OLLAMA_BASE_URL: http://ollama:11434
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      # n8n
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook}
+      N8N_API_KEY: ${N8N_API_KEY:-}
+
+      # Redis
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+
+  # ==================== OLLAMA (Optional - Local LLM) ====================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: seap-ollama
+    restart: unless-stopped
+    profiles:
+      - ai  # Only start with: docker-compose --profile ai up
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    # GPU support (uncomment for NVIDIA GPU)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # ==================== N8N (Optional - if self-hosting) ====================
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: seap-n8n
+    restart: unless-stopped
+    profiles:
+      - workflows  # Only start with: docker-compose --profile workflows up
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-admin}
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Europe/Bucharest
+    volumes:
+      - n8n_data:/home/node/.n8n
+    ports:
+      - "5678:5678"
+
+volumes:
+  postgres_data:
+  minio_data:
+  redis_data:
+  ollama_data:
+  n8n_data:
+
+networks:
+  default:
+    name: seap-network

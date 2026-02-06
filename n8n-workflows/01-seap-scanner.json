@@ -1,0 +1,259 @@
+{
+  "name": "SEAP Scanner - Căutare Licitații IT",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "La fiecare 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SEAP_APP_URL}}/api/organizations/cpv-codes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-cpv-codes",
+      "name": "Obține coduri CPV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "seap-api-key",
+          "name": "SEAP API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrage toate codurile CPV unice din toate organizațiile\nconst organizations = $input.all();\nconst allCpvCodes = new Set();\n\nfor (const org of organizations) {\n  const data = org.json;\n  if (data.cpvCodes && Array.isArray(data.cpvCodes)) {\n    data.cpvCodes.forEach(code => allCpvCodes.add(code));\n  }\n}\n\n// Returnează fiecare cod CPV ca item separat\nreturn Array.from(allCpvCodes).map(code => ({\n  json: { cpvCode: code }\n}));"
+      },
+      "id": "extract-cpv",
+      "name": "Extrage coduri unice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://e-licitatie.ro/api-pub/NoticeCommon/GetCANoticeList",
+        "authentication": "none",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "cpvCode",
+              "value": "={{ $json.cpvCode }}"
+            },
+            {
+              "name": "pageSize",
+              "value": "50"
+            },
+            {
+              "name": "pageIndex",
+              "value": "0"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "search-seap",
+      "name": "Caută pe SEAP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsează rezultatele SEAP și transformă în format standard\nconst results = $input.all();\nconst tenders = [];\n\nfor (const result of results) {\n  const data = result.json;\n  \n  // SEAP returnează items sau array direct\n  const items = data.items || data.searchResult?.items || data || [];\n  \n  if (Array.isArray(items)) {\n    for (const item of items) {\n      tenders.push({\n        json: {\n          seapId: item.caNoticeId || item.noticeNo || item.id,\n          title: item.contractTitle || item.noticeTitle || item.title,\n          description: item.shortDescription || item.description,\n          contractingAuth: item.contractingAuthorityNameAndFN || item.authorityName,\n          contractingAuthCui: item.contractingAuthorityCUI,\n          estimatedValue: item.ronContractValue || item.estimatedValue,\n          currency: 'RON',\n          cpvCode: item.cpvCode || item.cpvCodeAndName?.split(' - ')[0],\n          cpvDescription: item.cpvCodeAndName,\n          procedureType: item.contractingType || item.procedureType,\n          contractType: item.sysContractAssigmentType || item.contractType,\n          publicationDate: item.publicationDate,\n          submissionDeadline: item.tenderReceiptDeadline || item.submitDeadline,\n          seapUrl: `https://e-licitatie.ro/pub/notices/c-notice/v2/view/${item.caNoticeId || item.noticeNo}`,\n          rawData: item\n        }\n      });\n    }\n  }\n}\n\n// Filtrează duplicatele\nconst uniqueTenders = [];\nconst seenIds = new Set();\n\nfor (const tender of tenders) {\n  const id = tender.json.seapId;\n  if (id && !seenIds.has(id)) {\n    seenIds.add(id);\n    uniqueTenders.push(tender);\n  }\n}\n\nreturn uniqueTenders.length > 0 ? uniqueTenders : [{ json: { noResults: true } }];"
+      },
+      "id": "parse-results",
+      "name": "Parsează rezultate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.noResults }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-empty",
+      "name": "Filtrează goale",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SEAP_APP_URL}}/api/webhooks/n8n",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event\": \"tender_found\",\n  \"data\": {{ JSON.stringify($json) }},\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "send-webhook",
+      "name": "Trimite la App",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1450, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "seap-api-key",
+          "name": "SEAP API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "summary",
+              "name": "summary",
+              "value": "=Procesate {{ $items().length }} licitații noi",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "set-summary",
+      "name": "Sumar",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1650, 300]
+    }
+  ],
+  "connections": {
+    "La fiecare 30 min": {
+      "main": [
+        [
+          {
+            "node": "Obține coduri CPV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obține coduri CPV": {
+      "main": [
+        [
+          {
+            "node": "Extrage coduri unice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrage coduri unice": {
+      "main": [
+        [
+          {
+            "node": "Caută pe SEAP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caută pe SEAP": {
+      "main": [
+        [
+          {
+            "node": "Parsează rezultate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsează rezultate": {
+      "main": [
+        [
+          {
+            "node": "Filtrează goale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrează goale": {
+      "main": [
+        [
+          {
+            "node": "Trimite la App",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trimite la App": {
+      "main": [
+        [
+          {
+            "node": "Sumar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "SEAP"
+    },
+    {
+      "name": "Scanner"
+    }
+  ]
+}

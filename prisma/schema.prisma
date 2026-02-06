@@ -1,0 +1,326 @@
+// SEAP Assistant - Database Schema
+// Multi-tenant SaaS for tender management
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==================== AUTH & MULTI-TENANT ====================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  password      String?   // For credentials auth
+
+  // Multi-tenant
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  role           UserRole      @default(MEMBER)
+
+  // Auth.js
+  accounts Account[]
+  sessions Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+// ==================== ORGANIZATION (FIRMA) ====================
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String   // Nume firma
+  cui       String   @unique // Cod Unic Identificare
+  address   String?
+  email     String?
+  phone     String?
+
+  // SEAP Settings
+  cpvCodes  String[] // Coduri CPV de interes
+  keywords  String[] // Cuvinte cheie monitorizare
+  minValue  Decimal? // Valoare minima licitatie
+  maxValue  Decimal? // Valoare maxima licitatie
+
+  // Relations
+  users     User[]
+  tenders   Tender[]
+  documents CompanyDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==================== TENDERS (LICITATII) ====================
+
+model Tender {
+  id                 String       @id @default(cuid())
+  seapId             String       @unique // ID din SEAP
+  seapUrl            String       // Link direct SEAP
+
+  // Info licitatie
+  title              String
+  description        String?
+  contractingAuth    String       // Autoritate contractanta
+  contractingAuthCui String?      // CUI autoritate
+  estimatedValue     Decimal?
+  currency           String       @default("RON")
+
+  // Clasificare
+  cpvCode            String       // Cod CPV principal
+  cpvCodes           String[]     // Coduri CPV secundare
+  cpvDescription     String?
+
+  // Procedura
+  procedureType      String       // licitatie_deschisa, cerere_oferte, etc
+  contractType       String?      // furnizare, servicii, lucrari
+
+  // Termene
+  publicationDate    DateTime?
+  submissionDeadline DateTime?
+  openingDate        DateTime?
+
+  // Status tracking
+  status             TenderStatus @default(NEW)
+  isWatched          Boolean      @default(false)
+  matchScore         Int?         // Scor relevanta 0-100
+
+  // Relations
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  documents          TenderDocument[]
+  analysis           TenderAnalysis?
+  events             TenderEvent[]
+
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([cpvCode])
+  @@index([status])
+  @@index([submissionDeadline])
+}
+
+enum TenderStatus {
+  NEW           // Nou descoperit
+  REVIEWING     // In analiza
+  PREPARING     // Pregatim oferta
+  SUBMITTED     // Oferta depusa
+  WON           // Castigat
+  LOST          // Pierdut
+  CANCELLED     // Anulat de autoritate
+  IGNORED       // Ignorat de noi
+}
+
+// ==================== DOCUMENTS ====================
+
+model TenderDocument {
+  id          String   @id @default(cuid())
+  tenderId    String
+  tender      Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  filename    String
+  originalUrl String?  // URL original SEAP
+  storagePath String   // Path in R2/MinIO
+  fileSize    Int
+  mimeType    String?
+  hash        String?  // SHA256 pentru detectare modificari
+
+  // Clasificare document
+  docType     DocumentType @default(OTHER)
+
+  // OCR & Processing
+  ocrText     String?  // Text extras din PDF
+  isProcessed Boolean  @default(false)
+
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenderId])
+}
+
+enum DocumentType {
+  CAIET_SARCINI      // Caiet de sarcini / Specificatii tehnice
+  FISA_DATE          // Fisa de date a achizitiei
+  FORMULARE          // Formulare de completat
+  CONTRACT_MODEL     // Model contract
+  CLARIFICARE        // Raspunsuri la clarificari
+  DOCUMENTATIE       // Documentatie de atribuire
+  ANEXE              // Anexe diverse
+  OTHER              // Altele
+}
+
+// ==================== AI ANALYSIS ====================
+
+model TenderAnalysis {
+  id        String @id @default(cuid())
+  tenderId  String @unique
+  tender    Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  // Cerinte extrase automat
+  qualificationReqs Json?  // Cerinte calificare (cifra afaceri, experienta, etc)
+  technicalSpecs    Json?  // Specificatii tehnice
+  evaluationCriteria Json? // Criterii atribuire (pret, calitate, ponderi)
+  keyDates          Json?  // Termene importante
+
+  // SWOT Analysis
+  strengths     String[] // Puncte tari - ce indeplinim usor
+  weaknesses    String[] // Puncte slabe - ce ne lipseste
+  opportunities String[] // Oportunitati - unde putem puncta
+  threats       String[] // Amenintari - riscuri, cerinte restrictive
+
+  // Recomandare
+  recommendation Recommendation @default(PENDING)
+  aiSummary      String?        // Rezumat AI
+  aiNotes        String?        // Note suplimentare
+
+  // Meta
+  modelUsed   String   // claude-3-opus, llama3, etc
+  confidence  Float?   // 0-1 confidence score
+  analyzedAt  DateTime @default(now())
+}
+
+enum Recommendation {
+  PENDING   // Inca nu s-a analizat
+  GO        // Recomandam participare
+  CAUTION   // Participare cu rezerve
+  NO_GO     // Nu recomandam
+}
+
+// ==================== EVENTS & TIMELINE ====================
+
+model TenderEvent {
+  id        String   @id @default(cuid())
+  tenderId  String
+  tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  eventType EventType
+  title     String
+  details   String?
+
+  // Pentru clarificari - link la document nou
+  documentId String?
+
+  seapDate  DateTime  // Data din SEAP
+  createdAt DateTime  @default(now())
+
+  @@index([tenderId])
+  @@index([eventType])
+}
+
+enum EventType {
+  PUBLISHED       // Licitatie publicata
+  CLARIFICATION   // Clarificare publicata
+  MODIFICATION    // Modificare documentatie
+  DEADLINE_CHANGE // Schimbare termen
+  RESULT          // Rezultat publicat
+  CANCELLED       // Anulare licitatie
+  OTHER           // Altele
+}
+
+// ==================== COMPANY DOCUMENTS ====================
+
+model CompanyDocument {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name        String
+  docType     CompanyDocType
+  storagePath String
+  fileSize    Int?
+
+  // Pentru certificate cu expirare
+  issuedAt    DateTime?
+  expiresAt   DateTime?
+
+  // Metadata
+  metadata    Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([docType])
+}
+
+enum CompanyDocType {
+  CUI               // Certificat inregistrare
+  BILANT            // Bilant contabil
+  CERTIFICAT_FISCAL // Certificat fiscal ANAF
+  CAZIER_FISCAL     // Cazier fiscal
+  ISO_9001          // Certificat ISO 9001
+  ISO_14001         // Certificat ISO 14001
+  ISO_27001         // Certificat ISO 27001
+  AUTORIZATIE       // Autorizatie speciala
+  CV                // CV personal cheie
+  EXPERIENTA        // Documente experienta similara
+  OTHER             // Altele
+}
+
+// ==================== N8N INTEGRATION ====================
+
+model WebhookLog {
+  id        String   @id @default(cuid())
+  source    String   // n8n, seap, etc
+  event     String   // tender_found, analysis_complete, etc
+  payload   Json
+  status    String   @default("received") // received, processed, failed
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([source, event])
+  @@index([createdAt])
+}
