@@ -25,12 +25,16 @@ export async function PATCH(
     const { id } = await params;
 
     // Check user has access to this organization
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      include: { organization: true },
+    const userOrg = await prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: {
+          userId: session.user.id,
+          organizationId: id,
+        },
+      },
     });
 
-    if (!user?.organization || user.organization.id !== id) {
+    if (!userOrg) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

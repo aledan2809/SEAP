@@ -521,12 +521,12 @@ async function handleDeadlineApproaching(data: Record<string, unknown>, logId: s
     if (parsed.tenderId) {
       tender = await prisma.tender.findUnique({
         where: { id: parsed.tenderId },
-        include: { organization: { include: { users: true } } },
+        include: { organization: true },
       });
     } else if (parsed.seapId) {
       tender = await prisma.tender.findFirst({
         where: { seapId: parsed.seapId },
-        include: { organization: { include: { users: true } } },
+        include: { organization: true },
       });
     }
 
@@ -559,7 +559,7 @@ async function handleDeadlineApproaching(data: Record<string, unknown>, logId: s
       processed: true,
       tenderId: tender.id,
       daysRemaining: parsed.daysRemaining,
-      notificationsQueued: tender.organization.users.length,
+      notificationsQueued: 0, // TODO: count userOrganizations when notifications are implemented
     };
   } catch (error) {
     console.error('Error handling deadline_approaching:', error);

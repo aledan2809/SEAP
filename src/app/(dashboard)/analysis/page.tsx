@@ -51,8 +51,8 @@ export default async function AnalysisPage() {
   const tendersWithAnalysis = await prisma.tender.findMany({
     where: {
       organization: {
-        users: {
-          some: { id: session.user.id },
+        userOrganizations: {
+          some: { userId: session.user.id },
         },
       },
       analysis: {
@@ -84,8 +84,8 @@ export default async function AnalysisPage() {
   const tendersWithoutAnalysis = await prisma.tender.findMany({
     where: {
       organization: {
-        users: {
-          some: { id: session.user.id },
+        userOrganizations: {
+          some: { userId: session.user.id },
         },
       },
       analysis: null,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { logAction, AuditActions } from '@/lib/audit-log';
 
 const statusSchema = z.object({
   status: z.enum([
@@ -35,8 +36,8 @@ export async function PATCH(
       where: {
         id,
         organization: {
-          users: {
-            some: { id: session.user.id },
+          userOrganizations: {
+            some: { userId: session.user.id },
           },
         },
       },
@@ -50,6 +51,16 @@ export async function PATCH(
     const updatedTender = await prisma.tender.update({
       where: { id },
       data: { status },
+    });
+
+    await logAction({
+      userId: session.user.id,
+      userEmail: session.user.email,
+      action: AuditActions.TENDER_UPDATE_STATUS,
+      resource: 'tender',
+      resourceId: id,
+      details: { oldStatus: tender.status, newStatus: status },
+      request,
     });
 
     return NextResponse.json({ success: true, tender: updatedTender });

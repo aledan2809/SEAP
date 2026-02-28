@@ -13,15 +13,45 @@ export default async function SettingsPage() {
     redirect('/login');
   }
 
-  // Fetch user with organization
+  // Fetch user with organizations (many-to-many)
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: { organization: true },
+    include: {
+      organizations: {
+        include: {
+          organization: {
+            include: {
+              _count: {
+                select: { tenders: true, documents: true },
+              },
+            },
+          },
+        },
+      },
+      activeOrganization: true,
+    },
   });
 
   if (!user) {
     redirect('/login');
   }
+
+  // Transform organizations to include role
+  const organizations = user.organizations.map((uo) => ({
+    ...uo.organization,
+    role: uo.role,
+    isActive: uo.organizationId === user.activeOrganizationId,
+  }));
+
+  // Find active organization with role
+  const activeOrganization = user.activeOrganization
+    ? {
+        ...user.activeOrganization,
+        role: user.organizations.find(
+          (uo) => uo.organizationId === user.activeOrganizationId
+        )?.role,
+      }
+    : null;
 
   return (
     <div className="space-y-6">
@@ -45,13 +75,14 @@ export default async function SettingsPage() {
 
         <TabsContent value="organization">
           <OrganizationSettings
-            organization={user.organization}
+            organizations={organizations}
+            activeOrganization={activeOrganization}
             userId={user.id}
           />
         </TabsContent>
 
         <TabsContent value="monitoring">
-          <MonitoringSettings organization={user.organization} />
+          <MonitoringSettings organization={activeOrganization} />
         </TabsContent>
       </Tabs>
     </div>

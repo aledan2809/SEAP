@@ -6,15 +6,18 @@ import { prisma } from '@/lib/db';
 import { compare } from 'bcryptjs';
 import type { Provider } from 'next-auth/providers';
 
-// Local type definition until Prisma client is generated
+// Local type definition for user with organization
 interface UserWithOrg {
   id: string;
   email: string;
   name: string | null;
   image: string | null;
   password: string | null;
-  role: string;
-  organizationId: string | null;
+  activeOrganizationId: string | null;
+  organizations: Array<{
+    role: string;
+    organizationId: string;
+  }>;
 }
 
 // Build providers array conditionally
@@ -32,7 +35,14 @@ const providers: Provider[] = [
 
       const user = await prisma.user.findUnique({
         where: { email: credentials.email as string },
-        include: { organization: true },
+        include: {
+          organizations: {
+            select: {
+              role: true,
+              organizationId: true,
+            },
+          },
+        },
       }) as UserWithOrg | null;
 
       if (!user || !user.password) {
@@ -48,13 +58,18 @@ const providers: Provider[] = [
         return null;
       }
 
+      // Get role from active organization or first organization
+      const activeOrgLink = user.organizations.find(
+        (o) => o.organizationId === user.activeOrganizationId
+      ) || user.organizations[0];
+
       return {
         id: user.id,
         email: user.email,
         name: user.name,
         image: user.image,
-        role: user.role,
-        organizationId: user.organizationId,
+        role: activeOrgLink?.role || 'MEMBER',
+        organizationId: user.activeOrganizationId,
       };
     },
   }),
@@ -82,8 +97,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as UserWithOrg).role;
-        token.organizationId = (user as UserWithOrg).organizationId;
+        token.role = (user as { role?: string }).role || 'MEMBER';
+        token.organizationId = (user as { organizationId?: string | null }).organizationId;
       }
       return token;
     },

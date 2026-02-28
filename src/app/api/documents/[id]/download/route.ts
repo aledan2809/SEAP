@@ -26,8 +26,8 @@ export async function GET(
         id,
         tender: {
           organization: {
-            users: {
-              some: { id: session.user.id },
+            userOrganizations: {
+              some: { userId: session.user.id },
             },
           },
         },
@@ -46,8 +46,8 @@ export async function GET(
         where: {
           id,
           organization: {
-            users: {
-              some: { id: session.user.id },
+            userOrganizations: {
+              some: { userId: session.user.id },
             },
           },
         },

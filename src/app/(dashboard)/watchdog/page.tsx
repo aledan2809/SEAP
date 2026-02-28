@@ -58,8 +58,8 @@ export default async function WatchdogPage() {
     where: {
       isWatched: true,
       organization: {
-        users: {
-          some: { id: session.user.id },
+        userOrganizations: {
+          some: { userId: session.user.id },
         },
       },
     },

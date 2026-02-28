@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { analyzeWithClaude } from '@/lib/ai/analyzer';
 import { Prisma } from '@prisma/client';
+import { logAction, AuditActions } from '@/lib/audit-log';
 
 export async function POST(
   request: NextRequest,
@@ -21,8 +22,8 @@ export async function POST(
       where: {
         id,
         organization: {
-          users: {
-            some: { id: session.user.id },
+          userOrganizations: {
+            some: { userId: session.user.id },
           },
         },
       },
@@ -170,6 +171,16 @@ export async function POST(
         data: { status: 'REVIEWING' },
       });
     }
+
+    await logAction({
+      userId: session.user.id,
+      userEmail: session.user.email,
+      action: AuditActions.ANALYSIS_RUN,
+      resource: 'tender',
+      resourceId: id,
+      details: { recommendation: analysis.recommendation, modelUsed: analysis.modelUsed },
+      request,
+    });
 
     return NextResponse.json({
       success: true,

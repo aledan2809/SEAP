@@ -12,6 +12,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Bell, LogOut, Settings, User } from 'lucide-react';
+import { MobileSidebar } from './sidebar';
+import { ThemeToggle } from '@/components/theme-toggle';
+import Link from 'next/link';
 
 interface HeaderProps {
   user: {
@@ -32,12 +35,20 @@ export function Header({ user }: HeaderProps) {
     : user.email[0].toUpperCase();
 
   return (
-    <header className="h-16 border-b bg-card flex items-center justify-between px-6 lg:pl-72">
-      <div className="flex-1">
-        {/* Search bar can go here */}
+    <header className="h-16 border-b bg-card flex items-center justify-between px-4 lg:px-6">
+      <div className="flex items-center gap-4">
+        {/* Mobile menu button */}
+        <MobileSidebar />
+
+        {/* Mobile logo - shown only on small screens */}
+        <div className="lg:hidden flex items-center">
+          <span className="text-lg font-semibold">SEAP</span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
+        <ThemeToggle />
+
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
@@ -64,13 +75,17 @@ export function Header({ user }: HeaderProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              <span>Profil</span>
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <User className="mr-2 h-4 w-4" />
+                <span>Profil</span>
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Setări</span>
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Setări</span>
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

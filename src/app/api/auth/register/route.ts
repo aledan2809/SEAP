@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { logAction, AuditActions } from '@/lib/audit-log';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Numele trebuie să aibă minim 2 caractere'),
@@ -31,37 +32,57 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await hash(password, 12);
 
-    // Create organization if CUI provided
-    let organizationId: string | null = null;
-
-    if (cui && organizationName) {
-      // Check if organization with this CUI exists
-      const existingOrg = await prisma.organization.findUnique({
-        where: { cui },
-      });
-
-      if (existingOrg) {
-        organizationId = existingOrg.id;
-      } else {
-        const newOrg = await prisma.organization.create({
-          data: {
-            name: organizationName,
-            cui,
-          },
-        });
-        organizationId = newOrg.id;
-      }
-    }
-
-    // Create user
+    // Create user first
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        organizationId,
-        role: organizationId ? 'OWNER' : 'MEMBER',
       },
+    });
+
+    // Create or link organization if CUI provided
+    if (cui && organizationName) {
+      // Check if organization with this CUI exists
+      let organization = await prisma.organization.findUnique({
+        where: { cui },
+      });
+
+      if (!organization) {
+        organization = await prisma.organization.create({
+          data: {
+            name: organizationName,
+            cui,
+          },
+        });
+      }
+
+      // Create UserOrganization link with OWNER role for new org, MEMBER for existing
+      const isNewOrg = !organization.createdAt ||
+        (new Date().getTime() - organization.createdAt.getTime()) < 5000;
+
+      await prisma.userOrganization.create({
+        data: {
+          userId: user.id,
+          organizationId: organization.id,
+          role: isNewOrg ? 'OWNER' : 'MEMBER',
+        },
+      });
+
+      // Set as active organization
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { activeOrganizationId: organization.id },
+      });
+    }
+
+    await logAction({
+      userId: user.id,
+      userEmail: user.email,
+      action: AuditActions.REGISTER,
+      resource: 'user',
+      resourceId: user.id,
+      request,
     });
 
     return NextResponse.json({

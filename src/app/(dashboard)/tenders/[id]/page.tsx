@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
+  Download,
 } from 'lucide-react';
 import { TenderStatusSelect } from '@/components/tenders/tender-status-select';
 import { TenderTimeline } from '@/components/tenders/tender-timeline';
@@ -61,8 +62,8 @@ export default async function TenderDetailPage({ params }: PageProps) {
     where: {
       id,
       organization: {
-        users: {
-          some: { id: session.user.id },
+        userOrganizations: {
+          some: { userId: session.user.id },
         },
       },
     },
@@ -126,6 +127,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
 
         <div className="flex gap-2">
           <TenderStatusSelect tenderId={tender.id} currentStatus={tender.status} />
+          <Button variant="outline" asChild>
+            <a href={`/api/tenders/${tender.id}/pdf`} download>
+              <Download className="mr-2 h-4 w-4" />
+              PDF
+            </a>
+          </Button>
           <Button variant="outline" asChild>
             <a
               href={tender.seapUrl}

@@ -1,75 +1,44 @@
 {
-  "name": "SEAP Scanner - Căutare Licitații IT",
+  "name": "SEAP Scanner - Licitații IT pentru Fabulosos",
   "nodes": [
     {
       "parameters": {
         "rule": {
           "interval": [
             {
-              "field": "minutes",
-              "minutesInterval": 30
+              "field": "hours",
+              "hoursInterval": 6
             }
           ]
         }
       },
       "id": "cron-trigger",
-      "name": "La fiecare 30 min",
+      "name": "La fiecare 6 ore",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [250, 300]
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{$env.SEAP_APP_URL}}/api/organizations/cpv-codes",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "options": {}
-      },
-      "id": "get-cpv-codes",
-      "name": "Obține coduri CPV",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [450, 300],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "seap-api-key",
-          "name": "SEAP API Key"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Extrage toate codurile CPV unice din toate organizațiile\nconst organizations = $input.all();\nconst allCpvCodes = new Set();\n\nfor (const org of organizations) {\n  const data = org.json;\n  if (data.cpvCodes && Array.isArray(data.cpvCodes)) {\n    data.cpvCodes.forEach(code => allCpvCodes.add(code));\n  }\n}\n\n// Returnează fiecare cod CPV ca item separat\nreturn Array.from(allCpvCodes).map(code => ({\n  json: { cpvCode: code }\n}));"
-      },
-      "id": "extract-cpv",
-      "name": "Extrage coduri unice",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [650, 300]
-    },
-    {
-      "parameters": {
-        "method": "GET",
+        "method": "POST",
         "url": "https://e-licitatie.ro/api-pub/NoticeCommon/GetCANoticeList",
         "authentication": "none",
-        "sendQuery": true,
-        "queryParameters": {
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "cpvCode",
-              "value": "={{ $json.cpvCode }}"
+              "name": "Referer",
+              "value": "https://e-licitatie.ro/"
             },
             {
-              "name": "pageSize",
-              "value": "50"
-            },
-            {
-              "name": "pageIndex",
-              "value": "0"
+              "name": "Origin",
+              "value": "https://e-licitatie.ro"
             }
           ]
         },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"pageSize\": 100,\n  \"pageIndex\": 0\n}",
         "options": {
           "response": {
             "response": {
@@ -82,18 +51,18 @@
       "name": "Caută pe SEAP",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [850, 300],
+      "position": [450, 300],
       "continueOnFail": true
     },
     {
       "parameters": {
-        "jsCode": "// Parsează rezultatele SEAP și transformă în format standard\nconst results = $input.all();\nconst tenders = [];\n\nfor (const result of results) {\n  const data = result.json;\n  \n  // SEAP returnează items sau array direct\n  const items = data.items || data.searchResult?.items || data || [];\n  \n  if (Array.isArray(items)) {\n    for (const item of items) {\n      tenders.push({\n        json: {\n          seapId: item.caNoticeId || item.noticeNo || item.id,\n          title: item.contractTitle || item.noticeTitle || item.title,\n          description: item.shortDescription || item.description,\n          contractingAuth: item.contractingAuthorityNameAndFN || item.authorityName,\n          contractingAuthCui: item.contractingAuthorityCUI,\n          estimatedValue: item.ronContractValue || item.estimatedValue,\n          currency: 'RON',\n          cpvCode: item.cpvCode || item.cpvCodeAndName?.split(' - ')[0],\n          cpvDescription: item.cpvCodeAndName,\n          procedureType: item.contractingType || item.procedureType,\n          contractType: item.sysContractAssigmentType || item.contractType,\n          publicationDate: item.publicationDate,\n          submissionDeadline: item.tenderReceiptDeadline || item.submitDeadline,\n          seapUrl: `https://e-licitatie.ro/pub/notices/c-notice/v2/view/${item.caNoticeId || item.noticeNo}`,\n          rawData: item\n        }\n      });\n    }\n  }\n}\n\n// Filtrează duplicatele\nconst uniqueTenders = [];\nconst seenIds = new Set();\n\nfor (const tender of tenders) {\n  const id = tender.json.seapId;\n  if (id && !seenIds.has(id)) {\n    seenIds.add(id);\n    uniqueTenders.push(tender);\n  }\n}\n\nreturn uniqueTenders.length > 0 ? uniqueTenders : [{ json: { noResults: true } }];"
+        "jsCode": "// Filtrează și transformă rezultatele SEAP\n// Coduri CPV IT: 72xxxxxx\nconst IT_CPV_PREFIXES = ['72', '48', '30'];\n\nconst results = $input.all();\nconst tenders = [];\n\nfor (const result of results) {\n  const data = result.json;\n  const items = data.items || [];\n  \n  for (const item of items) {\n    // Extrage codul CPV\n    const cpvMatch = item.cpvCodeAndName?.match(/^(\\d+)/);\n    const cpvCode = cpvMatch ? cpvMatch[1] : '';\n    const cpvPrefix = cpvCode.substring(0, 2);\n    \n    // Filtrează doar licitații IT\n    if (!IT_CPV_PREFIXES.includes(cpvPrefix)) {\n      continue;\n    }\n    \n    // Verifică dacă are deadline în viitor\n    if (item.tenderReceiptDeadlineExport) {\n      const deadline = new Date(item.tenderReceiptDeadlineExport);\n      if (deadline < new Date()) {\n        continue; // Skip expirate\n      }\n    }\n    \n    // Verifică statusul - doar publicate, nu atribuite\n    const state = item.sysProcedureState?.text || '';\n    if (state.toLowerCase().includes('atribuita') || state.toLowerCase().includes('anulat')) {\n      continue;\n    }\n    \n    tenders.push({\n      json: {\n        seapId: String(item.caNoticeId || item.noticeNo),\n        title: item.contractTitle || 'Fără titlu',\n        description: item.shortDescription || item.contractTitle,\n        contractingAuth: item.contractingAuthorityNameAndFN || 'Necunoscut',\n        contractingAuthCui: item.contractingAuthorityNameAndFN?.match(/^(\\d+)/)?.[1],\n        estimatedValue: item.ronContractValue || null,\n        currency: 'RON',\n        cpvCode: cpvCode + (item.cpvCodeAndName?.includes('-') ? '-' + item.cpvCodeAndName.split('-')[1]?.split(' ')[0] : ''),\n        cpvDescription: item.cpvCodeAndName,\n        procedureType: item.sysProcedureType?.text || 'unknown',\n        contractType: item.sysAcquisitionContractType?.text || item.sysContractAssigmentType?.text,\n        publicationDate: item.noticeStateDate || new Date().toISOString(),\n        submissionDeadline: item.tenderReceiptDeadlineExport || null,\n        seapUrl: `https://e-licitatie.ro/pub/notices/c-notice/v2/view/${item.caNoticeId}`\n      }\n    });\n  }\n}\n\n// Deduplică\nconst seen = new Set();\nconst unique = tenders.filter(t => {\n  if (seen.has(t.json.seapId)) return false;\n  seen.add(t.json.seapId);\n  return true;\n});\n\nconsole.log(`Found ${unique.length} IT tenders`);\n\nreturn unique.length > 0 ? unique : [{ json: { noResults: true, message: 'Nu s-au găsit licitații IT noi' } }];"
       },
-      "id": "parse-results",
-      "name": "Parsează rezultate",
+      "id": "filter-it",
+      "name": "Filtrează IT & Transformă",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1050, 300]
+      "position": [650, 300]
     },
     {
       "parameters": {
@@ -117,15 +86,15 @@
         }
       },
       "id": "filter-empty",
-      "name": "Filtrează goale",
+      "name": "Skip dacă gol",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
-      "position": [1250, 300]
+      "position": [850, 300]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.SEAP_APP_URL}}/api/webhooks/n8n",
+        "url": "https://seap-assistant.vercel.app/api/webhooks/n8n",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
@@ -134,14 +103,14 @@
         "options": {}
       },
       "id": "send-webhook",
-      "name": "Trimite la App",
+      "name": "Trimite la SEAP Assistant",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1450, 300],
+      "position": [1050, 300],
       "credentials": {
         "httpHeaderAuth": {
           "id": "seap-api-key",
-          "name": "SEAP API Key"
+          "name": "SEAP Assistant API Key"
         }
       }
     },
@@ -152,7 +121,7 @@
             {
               "id": "summary",
               "name": "summary",
-              "value": "=Procesate {{ $items().length }} licitații noi",
+              "value": "=Procesate {{ $items().length }} licitații IT",
               "type": "string"
             }
           ]
@@ -162,33 +131,11 @@
       "name": "Sumar",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [1650, 300]
+      "position": [1250, 300]
     }
   ],
   "connections": {
-    "La fiecare 30 min": {
-      "main": [
-        [
-          {
-            "node": "Obține coduri CPV",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Obține coduri CPV": {
-      "main": [
-        [
-          {
-            "node": "Extrage coduri unice",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extrage coduri unice": {
+    "La fiecare 6 ore": {
       "main": [
         [
           {
@@ -203,36 +150,36 @@
       "main": [
         [
           {
-            "node": "Parsează rezultate",
+            "node": "Filtrează IT & Transformă",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parsează rezultate": {
+    "Filtrează IT & Transformă": {
       "main": [
         [
           {
-            "node": "Filtrează goale",
+            "node": "Skip dacă gol",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Filtrează goale": {
+    "Skip dacă gol": {
       "main": [
         [
           {
-            "node": "Trimite la App",
+            "node": "Trimite la SEAP Assistant",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Trimite la App": {
+    "Trimite la SEAP Assistant": {
       "main": [
         [
           {
@@ -254,6 +201,9 @@
     },
     {
       "name": "Scanner"
+    },
+    {
+      "name": "IT"
     }
   ]
 }

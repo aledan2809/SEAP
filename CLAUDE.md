@@ -98,6 +98,24 @@ Last Updated: [timestamp]
    - Master creates regular backups of all projects
    - Log: `C:\Projects\master-backup-log.md`
 
+### 6. KNOWLEDGE BASE AUTO-UPDATE (MANDATORY)
+**Path**: `knowledge/` folder in project root
+
+**AUTO-UPDATE TRIGGERS** (Do automatically, NO user request needed):
+- After adding new features → Update project-overview.md
+- After changing architecture → Update technical stack info
+- After API changes → Document new/modified endpoints
+- After significant bug fixes → Document root cause and solution
+
+**VERSIONING** (Track all changes):
+Add changelog entry at top of knowledge files:
+```
+## Changelog
+- [YYYY-MM-DD] vX.X: Description of change
+```
+
+**IMPORTANT**: Knowledge base is LIVING documentation. Update it as part of every significant change. It should always reflect the CURRENT state of the project.
+
 ---
 
 ## Claude Code Autonomy Rules
@@ -189,4 +207,19 @@ npx supabase gen types typescript --linked > types/supabase.ts
 
 ## Project-Specific Instructions
 <!-- Add your project rules below -->
+
+
+
+---
+
+## Knowledge Base
+
+Add reference files to the `knowledge/` folder. These files will be consulted during development.
+
+Files available:
+```
+- `knowledge/project-overview.md` - Project overview and architecture
+```
+
+**IMPORTANT:** Always check knowledge base files before implementing features to ensure alignment with specifications.
 

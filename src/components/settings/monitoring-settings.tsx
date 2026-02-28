@@ -229,34 +229,40 @@ export function MonitoringSettings({ organization }: MonitoringSettingsProps) {
           </div>
 
           {/* CPV list */}
-          <div className="max-h-64 overflow-y-auto border rounded-md">
-            {filteredCpvCodes.slice(0, 50).map(([code, description]) => (
-              <div
-                key={code}
-                className={`flex items-center gap-3 p-2 hover:bg-accent cursor-pointer border-b last:border-b-0 ${
-                  selectedCpvCodes.includes(code) ? 'bg-accent' : ''
-                }`}
-                onClick={() => toggleCpvCode(code)}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedCpvCodes.includes(code)}
-                  onChange={() => toggleCpvCode(code)}
-                  className="h-4 w-4"
-                />
-                <span className="font-mono text-sm text-muted-foreground">
-                  {code}
-                </span>
-                <span className="text-sm truncate">{description}</span>
+          <div className="max-h-72 overflow-y-auto border rounded-md">
+            {filteredCpvCodes.length === 0 ? (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                Niciun cod CPV găsit pentru "{cpvSearch}"
               </div>
-            ))}
-            {filteredCpvCodes.length > 50 && (
-              <div className="p-2 text-center text-sm text-muted-foreground">
-                ... și încă {filteredCpvCodes.length - 50} rezultate. Rafină
-                căutarea.
-              </div>
+            ) : (
+              filteredCpvCodes.map(([code, description]) => {
+                const isSelected = selectedCpvCodes.includes(code);
+                return (
+                  <div
+                    key={code}
+                    className={`flex items-center gap-3 p-2 hover:bg-accent cursor-pointer border-b last:border-b-0 ${
+                      isSelected ? 'bg-primary/5' : ''
+                    }`}
+                    onClick={() => toggleCpvCode(code)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleCpvCode(code)}
+                      className="h-4 w-4 shrink-0"
+                    />
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">
+                      {code}
+                    </span>
+                    <span className="text-sm truncate">{description}</span>
+                  </div>
+                );
+              })
             )}
           </div>
+          <p className="text-xs text-muted-foreground">
+            {filteredCpvCodes.length} coduri CPV {cpvSearch ? 'găsite' : 'disponibile'} &middot; {selectedCpvCodes.length} selectate
+          </p>
         </CardContent>
       </Card>
 

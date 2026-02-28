@@ -56,8 +56,8 @@ export default async function TendersPage({ searchParams }: PageProps) {
   // Build where clause
   const whereClause: Record<string, unknown> = {
     organization: {
-      users: {
-        some: { id: session.user.id },
+      userOrganizations: {
+        some: { userId: session.user.id },
       },
     },
   };
@@ -88,8 +88,8 @@ export default async function TendersPage({ searchParams }: PageProps) {
     by: ['status'],
     where: {
       organization: {
-        users: {
-          some: { id: session.user.id },
+        userOrganizations: {
+          some: { userId: session.user.id },
         },
       },
     },

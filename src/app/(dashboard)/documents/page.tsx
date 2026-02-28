@@ -57,8 +57,8 @@ export default async function DocumentsPage() {
     where: {
       tender: {
         organization: {
-          users: {
-            some: { id: session.user.id },
+          userOrganizations: {
+            some: { userId: session.user.id },
           },
         },
       },
@@ -80,8 +80,8 @@ export default async function DocumentsPage() {
   const companyDocuments = await prisma.companyDocument.findMany({
     where: {
       organization: {
-        users: {
-          some: { id: session.user.id },
+        userOrganizations: {
+          some: { userId: session.user.id },
         },
       },
     },

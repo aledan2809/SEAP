@@ -21,10 +21,10 @@ model User {
   image         String?
   password      String?   // For credentials auth
 
-  // Multi-tenant
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  role           UserRole      @default(MEMBER)
+  // Multi-tenant - user poate avea acces la multiple organizatii
+  organizations        UserOrganization[]
+  activeOrganizationId String?            // Organizatia curenta selectata
+  activeOrganization   Organization?      @relation("ActiveOrganization", fields: [activeOrganizationId], references: [id])
 
   // Auth.js
   accounts Account[]
@@ -33,6 +33,23 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([activeOrganizationId])
+}
+
+// Junction table pentru many-to-many User <-> Organization
+model UserOrganization {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           UserRole     @default(MEMBER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([userId])
   @@index([organizationId])
 }
 
@@ -94,9 +111,11 @@ model Organization {
   maxValue  Decimal? // Valoare maxima licitatie
 
   // Relations
-  users     User[]
-  tenders   Tender[]
-  documents CompanyDocument[]
+  userOrganizations UserOrganization[]
+  activeUsers       User[]             @relation("ActiveOrganization")
+  tenders           Tender[]
+  documents         CompanyDocument[]
+  invitations       Invitation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -308,6 +327,43 @@ enum CompanyDocType {
   CV                // CV personal cheie
   EXPERIENTA        // Documente experienta similara
   OTHER             // Altele
+}
+
+// ==================== INVITATIONS ====================
+
+model Invitation {
+  id             String       @id @default(cuid())
+  email          String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           UserRole     @default(MEMBER)
+  token          String       @unique @default(cuid())
+  invitedById    String
+  status         String       @default("pending") // pending, accepted, expired
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+
+  @@index([email])
+  @@index([organizationId])
+  @@index([token])
+}
+
+// ==================== AUDIT LOG ====================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  userEmail  String?
+  action     String   // tender.create, analysis.run, settings.update, etc.
+  resource   String?  // tender, organization, document, etc.
+  resourceId String?
+  details    Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 // ==================== N8N INTEGRATION ====================
