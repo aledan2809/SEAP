@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/profile-settings';
 import { OrganizationSettings } from '@/components/settings/organization-settings';
 import { MonitoringSettings } from '@/components/settings/monitoring-settings';
+import { AdminSettings } from '@/components/settings/admin-settings';
+import { isAdmin } from '@/lib/settings';
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -43,6 +45,8 @@ export default async function SettingsPage() {
     isActive: uo.organizationId === user.activeOrganizationId,
   }));
 
+  const userIsAdmin = user.email ? await isAdmin(user.email) : false;
+
   // Find active organization with role
   const activeOrganization = user.activeOrganization
     ? {
@@ -67,6 +71,7 @@ export default async function SettingsPage() {
           <TabsTrigger value="profile">Profil</TabsTrigger>
           <TabsTrigger value="organization">Organizație</TabsTrigger>
           <TabsTrigger value="monitoring">Monitorizare</TabsTrigger>
+          {userIsAdmin && <TabsTrigger value="admin">Admin</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="profile">
@@ -84,6 +89,12 @@ export default async function SettingsPage() {
         <TabsContent value="monitoring">
           <MonitoringSettings organization={activeOrganization} />
         </TabsContent>
+
+        {userIsAdmin && (
+          <TabsContent value="admin">
+            <AdminSettings />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
