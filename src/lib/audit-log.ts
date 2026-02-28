@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { NextRequest } from 'next/server';
 
 interface LogOptions {
@@ -29,7 +30,7 @@ export async function logAction(options: LogOptions): Promise<void> {
         action: options.action,
         resource: options.resource || null,
         resourceId: options.resourceId || null,
-        details: options.details || undefined,
+        details: (options.details as Prisma.InputJsonValue) || undefined,
         ip: getClientIp(options.request),
       },
     });
