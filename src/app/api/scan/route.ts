@@ -10,7 +10,7 @@ import { logAction, AuditActions } from '@/lib/audit-log';
  * - POST: Manual trigger — runs scan type from body, optional notifications
  */
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 async function executeScan(scanType: 'full' | 'quick', sendDigest: boolean) {
   console.log(`Starting ${scanType} SEAP scan...`);

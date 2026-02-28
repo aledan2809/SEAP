@@ -1,36 +1,39 @@
 /**
- * SEAP Scanner - Căutare directă licitații
- * Înlocuiește necesitatea n8n pentru proiecte simple
+ * SEAP Scanner — Fetchează licitații recente din SEAP public API
+ *
+ * NOTĂ: SEAP public API (e-licitatie.ro/api-pub) are limitări:
+ * - GetCANoticeList = Contract Award Notices (recent publicate, date 2026)
+ * - GetCNoticeList = Contract Notices (date vechi 2019-2020, nefolosibil)
+ * - API-ul ignoră filtrele (cpvCode, sysNoticeState, date range)
+ * - Returnează max 3000 rezultate sortate după data publicării DESC
+ *
+ * Strategia: o singură cerere GetCANoticeList → filtrare client-side
  */
 
 import { prisma } from '@/lib/db';
 import { Decimal } from '@prisma/client/runtime/library';
 
-// SEAP Public API endpoints
-const SEAP_API_BASE = 'https://e-licitatie.ro/api-pub';
-const SEAP_NOTICE_LIST = `${SEAP_API_BASE}/NoticeCommon/GetCANoticeList`;
+const SEAP_API = 'https://e-licitatie.ro/api-pub/NoticeCommon/GetCANoticeList';
 
 export interface SeapTender {
-  caNoticeId: string;
+  caNoticeId: number | string;
   noticeNo?: string;
   contractTitle?: string;
   shortDescription?: string;
   contractingAuthorityNameAndFN?: string;
   contractingAuthorityCUI?: string;
   ronContractValue?: number;
-  cpvCode?: string;
   cpvCodeAndName?: string;
-  contractingType?: string;
-  sysContractAssigmentType?: string;
-  publicationDate?: string;
-  tenderReceiptDeadline?: string;
-  sysNoticeState?: string;
-}
-
-export interface SeapSearchResult {
-  items?: SeapTender[];
-  searchResult?: { items?: SeapTender[] };
-  totalCount?: number;
+  sysAcquisitionContractType?: { text?: string };
+  sysProcedureType?: { text?: string };
+  sysContractAssigmentType?: { text?: string };
+  sysNoticeState?: { text?: string };
+  sysProcedureState?: { text?: string };
+  noticeStateDate?: string;
+  maxTenderReceiptDeadline?: string;
+  tenderReceiptDeadlineExport?: string;
+  currencyCode?: string;
+  isOnline?: boolean;
 }
 
 export interface ScanResult {
@@ -42,50 +45,69 @@ export interface ScanResult {
 }
 
 /**
- * Caută licitații pe SEAP după cod CPV
- * SEAP API necesită POST, nu GET
+ * Fetch recent tenders from SEAP (single fast request)
  */
-export async function searchSeapByCpv(cpvCode: string, pageSize = 50): Promise<SeapTender[]> {
+async function fetchSeapTenders(pageSize = 100): Promise<SeapTender[]> {
   try {
-    // SEAP API necesită POST cu body JSON și Referer header
-    const response = await fetch(SEAP_NOTICE_LIST, {
+    const response = await fetch(SEAP_API, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
         'Referer': 'https://e-licitatie.ro/',
         'Origin': 'https://e-licitatie.ro',
       },
-      body: JSON.stringify({
-        cpvCode,
-        pageSize,
-        pageIndex: 0,
-        // Alte filtre posibile
-        sysNoticeState: 'PUBLISHED', // Doar publicate
-      }),
+      body: JSON.stringify({ pageSize, pageIndex: 0 }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`SEAP API error for CPV ${cpvCode}:`, response.status, errorText);
+      console.error(`SEAP API error: ${response.status}`);
       return [];
     }
 
-    const data = await response.json() as SeapSearchResult;
-
-    // SEAP returnează în diferite formate
-    const items = data.items || data.searchResult?.items || [];
-
-    return Array.isArray(items) ? items : [];
+    const data = await response.json();
+    return Array.isArray(data.items) ? data.items : [];
   } catch (error) {
-    console.error(`Error searching SEAP for CPV ${cpvCode}:`, error);
+    console.error('SEAP fetch error:', error);
     return [];
   }
 }
 
 /**
- * Scanează SEAP pentru toate organizațiile configurate
+ * Extract CPV code from "12345678-9 - Description (Rev.2)" format
+ */
+function extractCpvCode(cpvCodeAndName?: string): string {
+  if (!cpvCodeAndName) return '';
+  const match = cpvCodeAndName.match(/^(\d{8}(-\d)?)/);
+  return match ? match[1] : '';
+}
+
+/**
+ * Extract CPV group (first 2 digits) for broad matching
+ */
+function cpvGroup(code: string): string {
+  return code.substring(0, 2);
+}
+
+/**
+ * Check if tender CPV matches any of the organization's CPV codes
+ * Supports exact match AND group-level match (first 2 digits)
+ */
+function cpvMatches(tenderCpv: string, orgCpvCodes: string[]): boolean {
+  if (orgCpvCodes.length === 0) return true; // No filter = match all
+  const tGroup = cpvGroup(tenderCpv);
+  return orgCpvCodes.some(orgCpv => {
+    if (tenderCpv === orgCpv) return true;
+    // Group match: "72" matches "72000000-5"
+    if (orgCpv.length <= 2 && tGroup === orgCpv) return true;
+    if (cpvGroup(orgCpv) === tGroup) return true;
+    return false;
+  });
+}
+
+/**
+ * Full scan: fetch recent SEAP tenders and match to organizations
  */
 export async function runFullScan(): Promise<ScanResult> {
   const result: ScanResult = {
@@ -97,95 +119,87 @@ export async function runFullScan(): Promise<ScanResult> {
   };
 
   try {
-    // Obține toate organizațiile cu codurile lor CPV
+    // 1. Get organizations with CPV codes
     const organizations = await prisma.organization.findMany({
-      where: {
-        cpvCodes: { isEmpty: false },
-      },
+      where: { cpvCodes: { isEmpty: false } },
     });
 
     if (organizations.length === 0) {
-      result.errors.push('Nu există organizații cu coduri CPV configurate');
+      // If no orgs have CPV codes, fetch for ALL orgs (show everything)
+      const allOrgs = await prisma.organization.findMany();
+      if (allOrgs.length === 0) {
+        result.errors.push('Nu există organizații');
+        return result;
+      }
+      // Use first org as target
+      organizations.push(...allOrgs);
+    }
+
+    // 2. Single fast SEAP API call (most recent 200 tenders)
+    console.log(`Fetching latest tenders from SEAP...`);
+    const seapTenders = await fetchSeapTenders(200);
+
+    if (seapTenders.length === 0) {
+      result.errors.push('SEAP API nu a returnat rezultate');
       return result;
     }
 
-    // Colectează toate codurile CPV unice
-    const allCpvCodes = new Set<string>();
-    organizations.forEach(org => {
-      org.cpvCodes.forEach(cpv => allCpvCodes.add(cpv));
-    });
+    result.tendersFound = seapTenders.length;
+    console.log(`Fetched ${seapTenders.length} tenders from SEAP`);
 
-    console.log(`Scanning SEAP for ${allCpvCodes.size} CPV codes...`);
+    // 3. Process tenders — match to organizations
+    for (const tender of seapTenders) {
+      const seapId = String(tender.caNoticeId || tender.noticeNo);
+      if (!seapId) continue;
 
-    // Caută pentru fiecare cod CPV
-    const allTenders: SeapTender[] = [];
+      const tenderCpv = extractCpvCode(tender.cpvCodeAndName);
+      const title = tender.contractTitle || tender.shortDescription || 'Fără titlu';
 
-    for (const cpvCode of allCpvCodes) {
-      const tenders = await searchSeapByCpv(cpvCode);
-      allTenders.push(...tenders);
+      for (const org of organizations) {
+        try {
+          // Match by CPV code (group level) OR keywords
+          const cpvMatch = cpvMatches(tenderCpv, org.cpvCodes);
+          const keywordMatch = org.keywords.length > 0 && org.keywords.some(kw =>
+            title.toLowerCase().includes(kw.toLowerCase())
+          );
 
-      // Rate limiting - nu supraîncărcăm SEAP
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
+          if (!cpvMatch && !keywordMatch) continue;
 
-    // Deduplică după seapId
-    const uniqueTenders = new Map<string, SeapTender>();
-    for (const tender of allTenders) {
-      const id = tender.caNoticeId || tender.noticeNo;
-      if (id && !uniqueTenders.has(id)) {
-        uniqueTenders.set(id, tender);
-      }
-    }
-
-    result.tendersFound = uniqueTenders.size;
-    console.log(`Found ${result.tendersFound} unique tenders`);
-
-    // Procesează fiecare tender
-    for (const [seapId, tender] of uniqueTenders) {
-      try {
-        // Verifică dacă e activ (nu expirat)
-        if (tender.tenderReceiptDeadline) {
-          const deadline = new Date(tender.tenderReceiptDeadline);
-          if (deadline < new Date()) {
-            continue; // Skip expired
-          }
-        }
-
-        // Găsește organizațiile care monitorizează acest CPV
-        const cpvCode = tender.cpvCode || tender.cpvCodeAndName?.split(' - ')[0] || '';
-        const matchingOrgs = organizations.filter(org =>
-          org.cpvCodes.includes(cpvCode) || org.cpvCodes.length === 0
-        );
-
-        for (const org of matchingOrgs) {
-          // Verifică dacă tender-ul există deja
+          // Skip if already exists
           const existing = await prisma.tender.findFirst({
             where: { seapId, organizationId: org.id },
           });
-
           if (existing) continue;
 
-          // Calculează scor de potrivire
+          // Calculate match score
           const matchScore = calculateMatchScore(tender, org);
 
-          // Creează tender-ul
+          // Parse dates safely
+          const pubDate = tender.noticeStateDate ? new Date(tender.noticeStateDate) : null;
+          const deadline = tender.maxTenderReceiptDeadline
+            ? new Date(tender.maxTenderReceiptDeadline)
+            : tender.tenderReceiptDeadlineExport
+              ? new Date(tender.tenderReceiptDeadlineExport)
+              : null;
+
+          // Create tender
           const created = await prisma.tender.create({
             data: {
               seapId,
-              seapUrl: `https://e-licitatie.ro/pub/notices/c-notice/v2/view/${seapId}`,
-              title: tender.contractTitle || tender.shortDescription || 'Fără titlu',
-              description: tender.shortDescription,
+              seapUrl: `https://e-licitatie.ro/pub/notices/ca-notice/v2/view/${seapId}`,
+              title,
+              description: tender.shortDescription || title,
               contractingAuth: tender.contractingAuthorityNameAndFN || 'Necunoscut',
-              contractingAuthCui: tender.contractingAuthorityCUI,
+              contractingAuthCui: tender.contractingAuthorityNameAndFN?.match(/^(\d+)/)?.[1] || null,
               estimatedValue: tender.ronContractValue ? new Decimal(tender.ronContractValue) : null,
-              currency: 'RON',
-              cpvCode,
-              cpvCodes: cpvCode ? [cpvCode] : [],
-              cpvDescription: tender.cpvCodeAndName,
-              procedureType: tender.contractingType || 'unknown',
-              contractType: tender.sysContractAssigmentType,
-              publicationDate: tender.publicationDate ? new Date(tender.publicationDate) : null,
-              submissionDeadline: tender.tenderReceiptDeadline ? new Date(tender.tenderReceiptDeadline) : null,
+              currency: tender.currencyCode || 'RON',
+              cpvCode: tenderCpv,
+              cpvCodes: tenderCpv ? [tenderCpv] : [],
+              cpvDescription: tender.cpvCodeAndName || null,
+              procedureType: tender.sysProcedureType?.text || 'necunoscut',
+              contractType: tender.sysContractAssigmentType?.text || tender.sysAcquisitionContractType?.text || null,
+              publicationDate: pubDate,
+              submissionDeadline: deadline,
               status: 'NEW',
               matchScore,
               organizationId: org.id,
@@ -194,14 +208,17 @@ export async function runFullScan(): Promise<ScanResult> {
 
           result.createdTenderIds.push(created.id);
           result.tendersCreated++;
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          // Skip duplicate key errors silently
+          if (!msg.includes('Unique constraint')) {
+            result.errors.push(`Tender ${seapId}: ${msg}`);
+          }
         }
-      } catch (error) {
-        result.errors.push(`Error processing tender ${seapId}: ${error}`);
       }
     }
 
     console.log(`Created ${result.tendersCreated} new tenders`);
-
   } catch (error) {
     result.success = false;
     result.errors.push(`Scan error: ${error}`);
@@ -216,19 +233,22 @@ function calculateMatchScore(
 ): number {
   let score = 50;
 
-  // CPV match
-  const cpvCode = tender.cpvCode || tender.cpvCodeAndName?.split(' - ')[0] || '';
-  if (org.cpvCodes?.includes(cpvCode)) {
-    score += 20;
+  const tenderCpv = extractCpvCode(tender.cpvCodeAndName);
+
+  // Exact CPV match = +25, group match = +15
+  if (org.cpvCodes.includes(tenderCpv)) {
+    score += 25;
+  } else if (org.cpvCodes.some(c => cpvGroup(c) === cpvGroup(tenderCpv))) {
+    score += 15;
   }
 
   // Keyword match
   const title = (tender.contractTitle || '').toLowerCase();
-  org.keywords?.forEach(keyword => {
+  for (const keyword of org.keywords) {
     if (title.includes(keyword.toLowerCase())) {
       score += 10;
     }
-  });
+  }
 
   // Value range match
   if (tender.ronContractValue && org.minValue && org.maxValue) {
@@ -244,10 +264,8 @@ function calculateMatchScore(
 }
 
 /**
- * Scanare rapidă - caută doar licitații noi din ultima săptămână
+ * Quick scan — same as full scan (single API call is already fast)
  */
 export async function runQuickScan(): Promise<ScanResult> {
-  // Pentru acum, folosește scanarea completă
-  // În viitor poate fi optimizat cu filtrare pe dată
   return runFullScan();
 }
