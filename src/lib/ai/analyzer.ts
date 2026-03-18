@@ -146,12 +146,107 @@ async function analyzeWithClaudeCLI(prompt: string): Promise<string> {
   return result.trim();
 }
 
+/**
+ * Rule-based fallback analysis when neither CLI nor API are available.
+ * Generates a basic SWOT based on tender data (CPV match, value, deadline).
+ */
+function ruleBasedAnalysis(tender: TenderForAnalysis): AnalysisResult {
+  const strengths: string[] = [];
+  const weaknesses: string[] = [];
+  const opportunities: string[] = [];
+  const threats: string[] = [];
+
+  // CPV match analysis
+  const tenderCpvGroup = tender.cpvCode?.substring(0, 2) || '';
+  const orgCpvMatch = tender.organization.cpvCodes.some(c => c.startsWith(tenderCpvGroup));
+  if (orgCpvMatch) {
+    strengths.push(`Codul CPV ${tender.cpvCode} se potrivește cu profilul companiei`);
+  } else {
+    weaknesses.push(`Codul CPV ${tender.cpvCode} nu este în profilul principal al companiei`);
+  }
+
+  // Value analysis
+  if (tender.estimatedValue) {
+    const val = tender.estimatedValue;
+    if (val > 1_000_000) {
+      opportunities.push(`Valoare semnificativă: ${val.toLocaleString('ro-RO')} ${tender.currency}`);
+      threats.push('Concurență probabil ridicată datorită valorii mari');
+    } else if (val > 100_000) {
+      strengths.push(`Valoare moderată: ${val.toLocaleString('ro-RO')} ${tender.currency}`);
+    } else {
+      strengths.push(`Valoare accesibilă: ${val.toLocaleString('ro-RO')} ${tender.currency}`);
+    }
+  } else {
+    weaknesses.push('Valoarea estimată nu este specificată');
+  }
+
+  // Deadline analysis
+  if (tender.submissionDeadline) {
+    const days = Math.ceil((new Date(tender.submissionDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (days < 0) {
+      threats.push('Termenul de depunere a expirat');
+    } else if (days < 7) {
+      weaknesses.push(`Termen foarte scurt: ${days} zile rămase`);
+    } else if (days < 30) {
+      strengths.push(`Termen rezonabil: ${days} zile rămase`);
+    } else {
+      strengths.push(`Timp suficient pentru pregătire: ${days} zile rămase`);
+    }
+  }
+
+  // Procedure type
+  if (tender.procedureType?.toLowerCase().includes('deschis')) {
+    opportunities.push('Procedură deschisă — acces egal pentru toți operatorii');
+  }
+
+  // Authority analysis
+  strengths.push(`Autoritate contractantă: ${tender.contractingAuth}`);
+  opportunities.push('Posibilitate de referință pentru contracte viitoare');
+  threats.push('Necesită verificarea cerințelor de calificare din documentație');
+
+  // Documents
+  if (tender.documents.length === 0) {
+    weaknesses.push('Nu sunt documente disponibile pentru analiză detaliată');
+  }
+
+  // Keyword match
+  const titleLower = (tender.title || '').toLowerCase();
+  const keywordMatch = tender.organization.keywords.some(kw => titleLower.includes(kw.toLowerCase()));
+  if (keywordMatch) {
+    strengths.push('Titlul licitației corespunde cuvintelor cheie de interes');
+  }
+
+  // Recommendation
+  const score = strengths.length - weaknesses.length - threats.length + opportunities.length;
+  const recommendation = score >= 3 ? 'GO' : score >= 0 ? 'CAUTION' : 'NO_GO';
+
+  return {
+    strengths,
+    weaknesses,
+    opportunities,
+    threats,
+    recommendation,
+    aiSummary: `Analiză automată bazată pe reguli (AI indisponibil). ${
+      recommendation === 'GO' ? 'Licitația pare potrivită pentru profilul companiei.'
+      : recommendation === 'CAUTION' ? 'Recomandăm verificarea documentației înainte de decizie.'
+      : 'Licitația prezintă riscuri semnificative.'
+    } Pentru analiză AI completă, reîncarcă creditul Anthropic API.`,
+    aiNotes: 'Analiză generată automat fără AI — bazată pe CPV, valoare, termen și cuvinte cheie.',
+    qualificationReqs: null,
+    technicalSpecs: null,
+    evaluationCriteria: null,
+    keyDates: tender.submissionDeadline ? { depunere: new Date(tender.submissionDeadline).toLocaleDateString('ro-RO'), deschidere: null, altele: [] } : null,
+    confidence: 0.45,
+    modelUsed: 'rule-based',
+  };
+}
+
 export async function analyzeWithClaude(tender: TenderForAnalysis): Promise<AnalysisResult> {
   const prompt = buildAnalysisPrompt(tender);
   let responseText: string;
   let modelUsed: string;
 
-  // Strategy: try Claude CLI first (no API credits), then API fallback
+  // Strategy: try Claude CLI first (no API credits), then API, then rule-based fallback
   try {
     console.log('Trying Claude CLI for analysis...');
     responseText = await analyzeWithClaudeCLI(prompt);
@@ -162,24 +257,30 @@ export async function analyzeWithClaude(tender: TenderForAnalysis): Promise<Anal
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      throw new Error('Neither Claude CLI nor ANTHROPIC_API_KEY available for analysis');
+      console.log('No API key, falling back to rule-based analysis');
+      return ruleBasedAnalysis(tender);
     }
 
-    const client = new Anthropic({ apiKey });
-    modelUsed = 'claude-sonnet-4-20250514';
+    try {
+      const client = new Anthropic({ apiKey });
+      modelUsed = 'claude-sonnet-4-20250514';
 
-    const message = await client.messages.create({
-      model: modelUsed,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: prompt }],
-    });
+      const message = await client.messages.create({
+        model: modelUsed,
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: prompt }],
+      });
 
-    const textContent = message.content.find((block) => block.type === 'text');
-    if (!textContent || textContent.type !== 'text') {
-      throw new Error('No text response from Claude API');
+      const textContent = message.content.find((block) => block.type === 'text');
+      if (!textContent || textContent.type !== 'text') {
+        throw new Error('No text response from Claude API');
+      }
+      responseText = textContent.text.trim();
+    } catch (apiError) {
+      console.log('API failed, falling back to rule-based analysis:', (apiError as Error).message);
+      return ruleBasedAnalysis(tender);
     }
-    responseText = textContent.text.trim();
   }
 
   // Extract JSON from potential markdown code blocks
