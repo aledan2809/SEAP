@@ -1,259 +1,81 @@
 # SEAP Assistant - Development Status
 
-**Last Updated:** 2026-02-07
-**Status:** DEPLOYED - Production Ready
+**Last Updated:** 2026-03-18 08:30
+**Status:** ACTIVE DEVELOPMENT - Phase 3 DONE ✅
 **URL:** https://seap-assistant.vercel.app
 
 ---
 
-## Project Overview
+## Progres sesiune 2026-03-17 → 2026-03-18
 
-SEAP Assistant este o aplicație SaaS pentru monitorizarea și analiza licitațiilor publice din România (SEAP - Sistemul Electronic de Achiziții Publice).
+### SEAP Phase 1 ✅ (pipe_seap_mmuxaugu_ekl03k — DONE)
+- [x] **Mobile responsive sidebar** — hamburger + Sheet overlay (mobile)
+- [x] **CPV code autocomplete** — Combobox + Command + Popover în Settings
+- [x] **Email notifications service** — src/lib/notifications/email-service.ts + templates
+- [x] **PDF export endpoint** — /api/tenders/[id]/pdf (GET → PDF file)
+- [x] **CPV codes API** — /api/organizations/cpv-codes
+- [x] TypeScript: 0 erori
 
-### Tech Stack
-- **Frontend:** Next.js 16 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
-- **Backend:** Next.js API Routes + Prisma 5
-- **Database:** PostgreSQL (Neon Serverless)
-- **Auth:** NextAuth.js v5 (credentials + Google OAuth ready)
-- **AI:** Claude API (@anthropic-ai/sdk) pentru analiză SWOT
-- **Storage:** Cloudflare R2 / MinIO (S3-compatible)
-- **OCR:** External service la C:\Projects\ocr-model (port 8000)
-- **Automation:** n8n webhooks pentru SEAP scanning
-- **Deploy:** Vercel
+### SEAP Phase 2 ✅ (pipe_seap2_mmv2xiqj_ra49sg — DONE)
+- [x] **Audit log API** — /api/admin/audit-logs/route.ts
+- [x] **Invitations API** — /api/invitations/route.ts (send + list)
+- [x] TypeScript: 0 erori
 
----
-
-## Architecture
-
-```
-User → Vercel (Next.js) → Neon DB (PostgreSQL)
-                       → Claude API (AI Analysis)
-                       → R2/MinIO (Document Storage)
-                       → OCR Service (Text Extraction)
-
-n8n Workflow → Webhook → Create/Update Tenders
-```
+### SEAP Phase 3 ✅ (pipe_seap3_mmvmpzsp_ngao0b — DONE)
+- [x] **Dark mode** — ThemeProvider în layout.tsx (next-themes)
+- [x] **Invitations page** — /src/app/(dashboard)/invitations/page.tsx
+- [x] **Cron deadline notifications** — vercel.json cron `0 9 * * *` → /api/notifications/deadline-check
+- [x] **n8n webhook improvements** — WEBHOOK_SECRET validation + better error handling
+- [x] TypeScript: 0 erori
 
 ---
 
-## Database Schema (Key Models)
+## TODO Ramas
 
-### Multi-tenant (Many-to-Many)
-```
-User ←→ UserOrganization ←→ Organization
-         (role: OWNER/ADMIN/MEMBER)
-```
+### High Priority (necesită servicii externe)
+- [ ] Configurare n8n workflow real (SEAP scraper) — necesită n8n instance
+- [ ] Test Claude API cu licitație reală — necesită ANTHROPIC_API_KEY activ
+- [ ] Setup R2 credentials pentru document storage — necesită R2 bucket + keys
+- [ ] Pornire OCR service — necesită C:\Projects\ocr-model pornit
 
-### Core Entities
-- **Organization** - Firma (CUI, setări monitorizare CPV)
-- **Tender** - Licitație din SEAP
-- **TenderDocument** - Documente descărcate
-- **TenderAnalysis** - Analiză SWOT AI
-- **TenderEvent** - Timeline evenimente
-- **CompanyDocument** - Documente firmă (certificate, etc.)
-- **WebhookLog** - Log webhooks n8n
+### Low Priority (mai pot fi implementate)
+- [ ] Google OAuth activation (verifica .env pentru GOOGLE_CLIENT_ID)
+- [ ] Deploy pe Vercel cu toate variabilele de environment actualizate
 
 ---
 
-## Completed Features ✅
-
-### Authentication
-- [x] Login cu email/parolă
-- [x] Înregistrare cu organizație opțională
-- [x] JWT sessions
-- [x] Protected routes
-
-### Multi-tenant Organizations
-- [x] Many-to-many User-Organization
-- [x] Role-based access (OWNER, ADMIN, MEMBER)
-- [x] Switch între organizații
-- [x] Organizație activă per user
-
-### Pages
-- [x] Dashboard - Overview stats
-- [x] Licitații (/tenders) - Lista cu filtre
-- [x] Detalii licitație (/tenders/[id])
-- [x] Analiză AI (/analysis) - SWOT analysis
-- [x] Documente (/documents) - Tender + Company docs
-- [x] Watchdog (/watchdog) - Monitorizare
-- [x] Setări (/settings) - Profil, Organizație, Monitorizare
-
-### API Endpoints
-- [x] `/api/auth/register` - Înregistrare
-- [x] `/api/auth/[...nextauth]` - NextAuth
-- [x] `/api/organizations` - CRUD organizații
-- [x] `/api/organizations/[id]` - Detalii + switch
-- [x] `/api/organizations/[id]/monitoring` - Setări CPV
-- [x] `/api/tenders/[id]/analyze` - Trigger AI analysis
-- [x] `/api/tenders/[id]/status` - Update status
-- [x] `/api/documents/[id]/download` - Signed URLs
-- [x] `/api/webhooks/n8n` - Webhook handlers
-
-### AI Integration
-- [x] Claude API integration (claude-sonnet-4)
-- [x] SWOT analysis pentru licitații
-- [x] Recomandări GO/CAUTION/NO_GO
-- [x] Fallback la mock când API key lipsește
-
-### n8n Webhooks
-- [x] `tender_found` - Tender nou găsit
-- [x] `documents_downloaded` - Documente descărcate
-- [x] `analysis_complete` - Analiză completă
-- [x] `clarification_published` - Clarificare nouă
-- [x] `deadline_approaching` - Deadline aproape
-- [x] `tender_updated` - Tender actualizat
-
-### Document Handling
-- [x] Download din SEAP URLs
-- [x] Upload la R2/MinIO
-- [x] OCR integration (external service)
-- [x] Signed download URLs
+## Pipeline Autonomous Monitor (activ)
+- **Cron job**: job ID `283ccae3` (every 5 min, auto-expires 3 days)
+- **Script**: `C:/Projects/Master/mesh/state/auto-cycle.cjs`
+- **Log**: `C:/Projects/Master/mesh/state/auto-monitor.log`
+- UtilajHub Phase 7: `pipe_uh7_mmv324yc` — dev (running)
+- MarketingAutomation email: `pipe_ma_email_mmvnljys` — running
+- Source platform: `pipe_mmvnqwmq_he7guw` — running
 
 ---
 
-## Environment Variables
-
-```env
-# Database (Neon)
-DATABASE_URL="postgresql://..."
-DIRECT_URL="postgresql://..."
-
-# Auth
-AUTH_SECRET="..."
-AUTH_TRUST_HOST=true
-NEXTAUTH_URL="https://seap-assistant.vercel.app"
-
-# AI
-ANTHROPIC_API_KEY="sk-ant-..."
-
-# Storage (R2/MinIO)
-R2_ENDPOINT="..."
-R2_ACCESS_KEY="..."
-R2_SECRET_KEY="..."
-R2_BUCKET_NAME="seap-documents"
-
-# OCR (external)
-OCR_SERVICE_URL="http://localhost:8000"
-
-# Optional: Google OAuth
-GOOGLE_CLIENT_ID="..."
-GOOGLE_CLIENT_SECRET="..."
+## Fișiere noi create în această sesiune
+```
+src/app/(dashboard)/invitations/page.tsx        ← Invitations page
+src/app/api/admin/audit-logs/route.ts           ← Audit log API
+src/app/api/admin/settings/route.ts             ← Admin settings
+src/app/api/invitations/route.ts                ← Invitations CRUD
+src/app/api/notifications/deadline-check/       ← Deadline check API
+src/app/api/organizations/cpv-codes/route.ts    ← CPV codes API
+src/app/api/tenders/[id]/pdf/route.ts           ← PDF export
+src/app/api/webhooks/n8n/route.ts               ← n8n webhook (updated)
+src/components/dashboard/sidebar.tsx            ← Mobile responsive (updated)
+src/components/settings/monitoring-settings.tsx ← CPV autocomplete (updated)
+src/components/ui/combobox.tsx                  ← New component
+src/components/ui/command.tsx                   ← New component
+src/components/ui/popover.tsx                   ← New component
+src/lib/email/notifications.ts                  ← Email notifications
+src/lib/email/templates.ts                      ← Email templates
+src/lib/notifications/email-service.ts          ← Email service
+vercel.json                                     ← Cron jobs added
 ```
 
 ---
 
-## Current Database State
-
-### Users (2)
-1. alexdanciulescu@gmail.com (Alex Danciulescu) - OWNER
-2. test10@example.com (Test User) - MEMBER
-
-### Organizations (1)
-1. Fabulosos (RO33968578) - Real company
-
-### UserOrganization Links
-- Both users linked to Fabulosos
-
----
-
-## Pending/TODO
-
-### High Priority
-- [ ] Configurare n8n workflow real (SEAP scraper)
-- [ ] Test Claude API cu licitație reală
-- [ ] Setup R2 credentials pentru document storage
-- [ ] Pornire OCR service și test
-
-### Medium Priority
-- [ ] Email notifications pentru deadline-uri
-- [ ] Mobile responsive sidebar (collapsible)
-- [ ] CPV code autocomplete în settings
-- [ ] Export rapoarte PDF
-
-### Low Priority
-- [ ] Google OAuth activation
-- [ ] Invitații membri în organizație
-- [ ] Audit log pentru acțiuni
-- [ ] Dark mode
-
----
-
-## File Structure
-
-```
-C:\Projects\SEAP\
-├── prisma/
-│   └── schema.prisma          # Database schema
-├── src/
-│   ├── app/
-│   │   ├── (auth)/            # Login, Register
-│   │   ├── (dashboard)/       # Protected pages
-│   │   └── api/               # API routes
-│   ├── components/
-│   │   ├── ui/                # shadcn components
-│   │   ├── dashboard/         # Sidebar, Header
-│   │   ├── settings/          # Settings components
-│   │   └── tenders/           # Tender components
-│   └── lib/
-│       ├── ai/                # Claude integration
-│       ├── auth/              # NextAuth config
-│       ├── db/                # Prisma client
-│       ├── ocr/               # OCR client
-│       ├── seap/              # SEAP downloader
-│       └── storage/           # R2/MinIO client
-├── scripts/
-│   ├── migrate-users-orgs.ts  # Migration helper
-│   └── link-users-manual.ts   # Manual linking
-└── n8n-workflows/
-    └── 01-seap-scanner.json   # n8n workflow definition
-```
-
----
-
-## Recent Changes (2026-02-07)
-
-1. **Schema Update**: Changed from one-to-many to many-to-many User-Organization
-2. **New Table**: UserOrganization junction table with role per org
-3. **Auth Update**: Uses activeOrganizationId + organizations relation
-4. **Settings Update**: Support multiple organizations, switch between them
-5. **API Updates**: All endpoints use userOrganizations for access check
-6. **Data Migration**: Linked existing users to Fabulosos organization
-7. **Deploy**: Successfully deployed to Vercel
-
----
-
-## Commands
-
-```bash
-# Development
-npm run dev                    # Start dev server (port 3000)
-
-# Database
-npx prisma generate           # Generate Prisma client
-npx prisma db push            # Push schema to DB
-npx prisma studio             # Open Prisma Studio
-
-# Deploy
-vercel --prod                 # Deploy to production
-
-# Scripts
-npx tsx scripts/link-users-manual.ts  # Link users to orgs
-```
-
----
-
-## Contacts & Resources
-
-- **Vercel Dashboard:** https://vercel.com/alex-danciulescus-projects/seap-assistant
-- **Neon Console:** https://console.neon.tech
-- **SEAP:** https://e-licitatie.ro
-- **n8n:** Self-hosted or cloud
-
----
-
-## Notes
-
-- OCR service must be running locally for document processing
-- Claude API key required for real AI analysis (falls back to mock)
-- R2 credentials needed for document storage
-- n8n workflow needs to be imported and configured
+## Git Status (uncommitted)
+Toate modificările sunt nesalvate în git. Recomand: `git add -A && git commit -m "feat: Phase 1-3 features - sidebar, CPV, email, PDF, dark mode, invitations, audit log, cron"`

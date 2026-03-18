@@ -34,7 +34,7 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
       if (!res.ok) throw new Error('Failed to update');
 
       toast.success('Profil actualizat cu succes!');
-    } catch (error) {
+    } catch {
       toast.error('Eroare la actualizarea profilului');
     } finally {
       setIsLoading(false);

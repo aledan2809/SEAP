@@ -33,7 +33,7 @@ async function main() {
         const isFirstUser = users.indexOf(user) === 0;
         const role = isFirstUser ? 'OWNER' : 'MEMBER';
 
-        const link = await prisma.userOrganization.create({
+        await prisma.userOrganization.create({
           data: {
             userId: user.id,
             organizationId: org.id,

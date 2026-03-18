@@ -9,11 +9,81 @@ import {
 } from '@/lib/seap/downloader';
 import { processDocumentOcr, isOcrSupported } from '@/lib/ocr/client';
 import { getFile } from '@/lib/storage';
+import { sendDeadlineAlertForTender, sendOpportunityReports } from '@/lib/email/notifications';
 
 /**
  * Webhook endpoint pentru n8n
  * Primește evenimente de la workflow-urile n8n
+ *
+ * == SUPPORTED EVENT TYPES ==
+ *
+ * 1. tender_found
+ *    - Triggered when a new tender is discovered
+ *    - Creates tender records for all matching organizations
+ *    - Downloads attached documents
+ *    - Sends opportunity report emails
+ *
+ * 2. documents_downloaded
+ *    - Triggered when documents are downloaded externally
+ *    - Processes documents: downloads to storage, runs OCR
+ *
+ * 3. analysis_complete
+ *    - Triggered when AI analysis is done externally
+ *    - Stores SWOT analysis and recommendation
+ *
+ * 4. clarification_published
+ *    - Triggered when a clarification is published on SEAP
+ *    - Creates tender event, downloads attached documents
+ *
+ * 5. deadline_approaching
+ *    - Triggered to notify about upcoming deadlines
+ *    - Sends deadline alert emails to organization users
+ *
+ * 6. tender_updated
+ *    - Triggered when tender details change (deadline, value, etc.)
+ *    - Updates tender record and creates modification event
+ *
+ * == AUTHENTICATION ==
+ * - Primary: WEBHOOK_SECRET header (x-webhook-secret)
+ * - Fallback: N8N_API_KEY header (x-api-key)
+ * - If neither env var is set, webhook is open (not recommended)
+ *
+ * == RATE LIMITING ==
+ * - 100 requests per minute per IP
+ * - Returns 429 Too Many Requests when exceeded
  */
+
+// Simple in-memory rate limiter
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 100;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  entry.count++;
+  return true;
+}
+
+// Cleanup old entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap.entries()) {
+    if (now > entry.resetAt) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000);
 
 const webhookSchema = z.object({
   event: z.enum([
@@ -99,10 +169,42 @@ const tenderUpdateDataSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Verifică API key (opțional)
-    const apiKey = request.headers.get('x-api-key');
-    if (process.env.N8N_API_KEY && apiKey !== process.env.N8N_API_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Get client IP for rate limiting
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const clientIp = forwardedFor?.split(',')[0]?.trim() || 'unknown';
+
+    // Check rate limit
+    if (!checkRateLimit(clientIp)) {
+      console.warn(`[N8N Webhook] Rate limit exceeded for IP: ${clientIp}`);
+      return NextResponse.json(
+        { error: 'Too many requests. Max 100 per minute.' },
+        { status: 429 }
+      );
+    }
+
+    // Authentication: check WEBHOOK_SECRET first, then N8N_API_KEY
+    const webhookSecret = process.env.WEBHOOK_SECRET;
+    const n8nApiKey = process.env.N8N_API_KEY;
+    const providedWebhookSecret = request.headers.get('x-webhook-secret');
+    const providedApiKey = request.headers.get('x-api-key');
+
+    // If WEBHOOK_SECRET is set, validate it
+    if (webhookSecret) {
+      if (providedWebhookSecret !== webhookSecret) {
+        console.warn(`[N8N Webhook] Invalid webhook secret from IP: ${clientIp}`);
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+    // Otherwise, if N8N_API_KEY is set, validate it
+    else if (n8nApiKey) {
+      if (providedApiKey !== n8nApiKey) {
+        console.warn(`[N8N Webhook] Invalid API key from IP: ${clientIp}`);
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+    // If neither is set, log a warning (open webhook - not recommended)
+    else {
+      console.warn('[N8N Webhook] No authentication configured. Set WEBHOOK_SECRET or N8N_API_KEY.');
     }
 
     const body = await request.json();
@@ -123,22 +225,22 @@ export async function POST(request: NextRequest) {
     // Procesează evenimentul
     switch (event) {
       case 'tender_found':
-        result = await handleTenderFound(data, log.id);
+        result = await handleTenderFound(data);
         break;
       case 'documents_downloaded':
-        result = await handleDocumentsDownloaded(data, log.id);
+        result = await handleDocumentsDownloaded(data);
         break;
       case 'analysis_complete':
-        result = await handleAnalysisComplete(data, log.id);
+        result = await handleAnalysisComplete(data);
         break;
       case 'clarification_published':
-        result = await handleClarificationPublished(data, log.id);
+        result = await handleClarificationPublished(data);
         break;
       case 'deadline_approaching':
-        result = await handleDeadlineApproaching(data, log.id);
+        result = await handleDeadlineApproaching(data);
         break;
       case 'tender_updated':
-        result = await handleTenderUpdated(data, log.id);
+        result = await handleTenderUpdated(data);
         break;
     }
 
@@ -165,7 +267,7 @@ export async function POST(request: NextRequest) {
 
 // ==================== HANDLERS ====================
 
-async function handleTenderFound(data: Record<string, unknown>, logId: string) {
+async function handleTenderFound(data: Record<string, unknown>) {
   try {
     const tenderData = tenderDataSchema.parse(data);
 
@@ -184,13 +286,13 @@ async function handleTenderFound(data: Record<string, unknown>, logId: string) {
       // Creează tender pentru "sistem" - va fi vizibil tuturor
       const firstOrg = await prisma.organization.findFirst();
       if (!firstOrg) {
-        console.log('No organizations found, skipping tender');
         return { skipped: true, reason: 'no_organizations' };
       }
       organizations.push(firstOrg);
     }
 
     const results = [];
+    const createdTenderIds: string[] = [];
 
     for (const org of organizations) {
       // Verifică dacă tender-ul există deja pentru această organizație
@@ -263,9 +365,22 @@ async function handleTenderFound(data: Record<string, unknown>, logId: string) {
         tenderId: tender.id,
         matchScore,
       });
+      createdTenderIds.push(tender.id);
     }
 
-    return { processed: true, results };
+    let reports = { sent: 0, reports: 0 };
+    if (createdTenderIds.length > 0) {
+      reports = await sendOpportunityReports(createdTenderIds);
+    }
+
+    return {
+      processed: true,
+      results,
+      notifications: {
+        opportunityReportsSent: reports.sent,
+        reportsGenerated: reports.reports,
+      },
+    };
   } catch (error) {
     console.error('Error handling tender_found:', error);
     throw error;
@@ -304,7 +419,7 @@ function calculateMatchScore(
   return Math.min(score, 100);
 }
 
-async function handleDocumentsDownloaded(data: Record<string, unknown>, logId: string) {
+async function handleDocumentsDownloaded(data: Record<string, unknown>) {
   try {
     const parsed = documentsDataSchema.parse(data);
 
@@ -412,7 +527,7 @@ async function processDocumentsForTender(
   return results;
 }
 
-async function handleAnalysisComplete(data: Record<string, unknown>, logId: string) {
+async function handleAnalysisComplete(data: Record<string, unknown>) {
   try {
     const parsed = analysisDataSchema.parse(data);
 
@@ -465,7 +580,7 @@ async function handleAnalysisComplete(data: Record<string, unknown>, logId: stri
   }
 }
 
-async function handleClarificationPublished(data: Record<string, unknown>, logId: string) {
+async function handleClarificationPublished(data: Record<string, unknown>) {
   try {
     const parsed = clarificationDataSchema.parse(data);
 
@@ -512,7 +627,7 @@ async function handleClarificationPublished(data: Record<string, unknown>, logId
   }
 }
 
-async function handleDeadlineApproaching(data: Record<string, unknown>, logId: string) {
+async function handleDeadlineApproaching(data: Record<string, unknown>) {
   try {
     const parsed = deadlineDataSchema.parse(data);
 
@@ -534,11 +649,6 @@ async function handleDeadlineApproaching(data: Record<string, unknown>, logId: s
       return { processed: false, error: 'Tender not found' };
     }
 
-    // Log the deadline approaching (notifications to be implemented)
-    console.log(
-      `Deadline approaching for tender ${tender.id}: ${parsed.daysRemaining} days remaining`
-    );
-
     // Creează eveniment
     await prisma.tenderEvent.create({
       data: {
@@ -550,16 +660,16 @@ async function handleDeadlineApproaching(data: Record<string, unknown>, logId: s
       },
     });
 
-    // TODO: Send email notifications to organization users
-    // for (const user of tender.organization.users) {
-    //   await sendDeadlineNotification(user.email, tender, parsed.daysRemaining);
-    // }
+    const notificationStats = await sendDeadlineAlertForTender(
+      tender.id,
+      parsed.daysRemaining
+    );
 
     return {
       processed: true,
       tenderId: tender.id,
       daysRemaining: parsed.daysRemaining,
-      notificationsQueued: 0, // TODO: count userOrganizations when notifications are implemented
+      notificationsSent: notificationStats.sent,
     };
   } catch (error) {
     console.error('Error handling deadline_approaching:', error);
@@ -567,7 +677,7 @@ async function handleDeadlineApproaching(data: Record<string, unknown>, logId: s
   }
 }
 
-async function handleTenderUpdated(data: Record<string, unknown>, logId: string) {
+async function handleTenderUpdated(data: Record<string, unknown>) {
   try {
     const parsed = tenderUpdateDataSchema.parse(data);
 

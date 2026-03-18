@@ -2,7 +2,11 @@
   "crons": [
     {
       "path": "/api/scan",
-      "schedule": "0 8 * * *"
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/notifications/deadline-check",
+      "schedule": "0 9 * * *"
     }
   ]
 }

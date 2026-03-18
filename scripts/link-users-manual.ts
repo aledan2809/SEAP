@@ -3,30 +3,15 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Linking users to organizations...\n');
-
   // Get all users and organizations
   const users = await prisma.user.findMany();
   const orgs = await prisma.organization.findMany();
 
-  console.log('Users:');
-  for (const user of users) {
-    console.log(`  - ${user.email} (${user.name})`);
-  }
-
-  console.log('\nOrganizations:');
-  for (const org of orgs) {
-    console.log(`  - ${org.name} (${org.cui})`);
-  }
-
   // Find the real organization (Fabulosos with real CUI)
   const realOrg = orgs.find((o) => o.cui === 'RO33968578');
   if (!realOrg) {
-    console.log('\nFabulosos organization not found!');
-    return;
+    throw new Error('Fabulosos organization not found');
   }
-
-  console.log(`\nLinking all users to ${realOrg.name}...`);
 
   for (let i = 0; i < users.length; i++) {
     const user = users[i];
@@ -50,9 +35,6 @@ async function main() {
           role: isOwner ? 'OWNER' : 'MEMBER',
         },
       });
-      console.log(`  Created: ${user.email} -> ${realOrg.name} as ${isOwner ? 'OWNER' : 'MEMBER'}`);
-    } else {
-      console.log(`  Already linked: ${user.email}`);
     }
 
     // Set active organization
@@ -60,7 +42,6 @@ async function main() {
       where: { id: user.id },
       data: { activeOrganizationId: realOrg.id },
     });
-    console.log(`  Set activeOrganization: ${user.email} -> ${realOrg.name}`);
   }
 
   // Delete the test organization if it's empty
@@ -75,13 +56,8 @@ async function main() {
 
     if (linkedUsers === 0 && linkedTenders === 0) {
       await prisma.organization.delete({ where: { id: testOrg.id } });
-      console.log(`\nDeleted empty test organization: ${testOrg.name}`);
-    } else {
-      console.log(`\nTest organization has data, not deleting: ${linkedUsers} users, ${linkedTenders} tenders`);
     }
   }
-
-  console.log('\nDone!');
 }
 
 main()

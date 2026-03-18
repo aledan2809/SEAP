@@ -82,7 +82,6 @@ export default async function SettingsPage() {
           <OrganizationSettings
             organizations={organizations}
             activeOrganization={activeOrganization}
-            userId={user.id}
           />
         </TabsContent>
 

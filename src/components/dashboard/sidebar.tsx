@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ import {
   Menu,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/theme-toggle';
 import {
   Sheet,
   SheetContent,
@@ -59,7 +60,11 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
       </nav>
-      <div className="px-4 py-4 border-t">
+      <div className="px-4 py-4 border-t space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Tema:</span>
+          <ThemeToggle />
+        </div>
         <div className="text-xs text-muted-foreground">
           <p>SEAP Assistant v1.1</p>
         </div>
@@ -83,12 +88,26 @@ export function Sidebar() {
   );
 }
 
-// Mobile sidebar — Sheet with auto-close on navigate
+// Mobile sidebar — Sheet with auto-close on navigate and localStorage persistence
 export function MobileSidebar() {
   const [open, setOpen] = useState(false);
 
+  // Load sidebar state from localStorage on mount
+  useEffect(() => {
+    const savedState = localStorage.getItem('mobile-sidebar-open');
+    if (savedState) {
+      setOpen(savedState === 'true');
+    }
+  }, []);
+
+  // Save sidebar state to localStorage when it changes
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    localStorage.setItem('mobile-sidebar-open', String(newOpen));
+  };
+
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon" className="lg:hidden">
           <Menu className="h-6 w-6" />
@@ -101,7 +120,7 @@ export function MobileSidebar() {
           <SheetTitle className="text-xl font-bold">SEAP</SheetTitle>
         </SheetHeader>
         <div className="flex flex-col flex-1 overflow-y-auto">
-          <SidebarNav onNavigate={() => setOpen(false)} />
+          <SidebarNav onNavigate={() => handleOpenChange(false)} />
         </div>
       </SheetContent>
     </Sheet>

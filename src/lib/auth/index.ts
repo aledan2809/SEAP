@@ -5,6 +5,7 @@ import Google from 'next-auth/providers/google';
 import { prisma } from '@/lib/db';
 import { compare } from 'bcryptjs';
 import type { Provider } from 'next-auth/providers';
+import { logAction, AuditActions } from '@/lib/audit-log';
 
 // Local type definition for user with organization
 interface UserWithOrg {
@@ -109,6 +110,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.organizationId = token.organizationId as string | null;
       }
       return session;
+    },
+    async signIn({ user }) {
+      if (user?.email) {
+        await logAction({
+          userId: user.id,
+          userEmail: user.email,
+          action: AuditActions.LOGIN,
+          resource: 'auth',
+        });
+      }
+      return true;
     },
   },
 });

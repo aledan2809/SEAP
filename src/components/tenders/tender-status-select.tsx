@@ -49,7 +49,7 @@ export function TenderStatusSelect({
 
       toast.success('Status actualizat!');
       router.refresh();
-    } catch (error) {
+    } catch {
       toast.error('Eroare la actualizarea statusului');
     } finally {
       setIsLoading(false);

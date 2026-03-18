@@ -210,7 +210,7 @@ export default async function AnalysisPage() {
               <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Nu există încă analize AI.</p>
               <p className="text-sm mt-2">
-                Accesează o licitație și apasă pe "Analizează cu AI".
+                Accesează o licitație și apasă pe &quot;Analizează cu AI&quot;.
               </p>
               <Button asChild className="mt-4">
                 <Link href="/tenders">Explorează Licitații</Link>

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Shield, Mail, HardDrive, Bot, ScanSearch } from 'lucide-react';
+import { Loader2, Save, Shield, Mail, HardDrive, Bot, ScanSearch, ScrollText } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Settings {
@@ -301,12 +301,117 @@ export function AdminSettings() {
         </CardContent>
       </Card>
 
+      {/* Audit Logs */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ScrollText className="h-5 w-5" />
+            Jurnal Audit
+          </CardTitle>
+          <CardDescription>
+            Vizualizează activitatea utilizatorilor din sistem.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AuditLogViewer />
+        </CardContent>
+      </Card>
+
       {/* Save Button */}
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saving} size="lg">
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Salvează Setările
         </Button>
+      </div>
+    </div>
+  );
+}
+
+// --- Audit Log Viewer ---
+interface AuditLog {
+  id: string;
+  userId: string | null;
+  userEmail: string | null;
+  action: string;
+  resource: string | null;
+  resourceId: string | null;
+  details: unknown;
+  ip: string | null;
+  createdAt: string;
+}
+
+function AuditLogViewer() {
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [limit] = useState(20);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/audit-logs?limit=${limit}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLogs(data.logs || []);
+        setTotal(data.total || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch audit logs:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [limit]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-4">
+        Niciun log disponibil.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Afișând ultimele {logs.length} din {total} evenimente
+      </p>
+      <div className="border rounded-lg divide-y max-h-96 overflow-y-auto">
+        {logs.map((log) => (
+          <div key={log.id} className="p-3 text-xs space-y-1 hover:bg-muted/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-medium">{log.action}</span>
+                {log.resource && (
+                  <span className="text-muted-foreground">
+                    → {log.resource}
+                    {log.resourceId && (
+                      <span className="ml-1 font-mono">#{log.resourceId.slice(0, 8)}</span>
+                    )}
+                  </span>
+                )}
+              </div>
+              <span className="text-muted-foreground">
+                {new Date(log.createdAt).toLocaleString('ro-RO')}
+              </span>
+            </div>
+            <div className="flex items-center gap-4 text-muted-foreground">
+              {log.userEmail && <span>{log.userEmail}</span>}
+              {log.ip && <span className="font-mono text-[10px]">{log.ip}</span>}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

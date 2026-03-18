@@ -61,7 +61,7 @@ export default function RegisterPage() {
 
       // Redirect to login
       router.push('/login?registered=true');
-    } catch (err) {
+    } catch {
       setError('A apărut o eroare. Încearcă din nou.');
     } finally {
       setIsLoading(false);

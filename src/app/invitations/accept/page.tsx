@@ -10,13 +10,13 @@ function AcceptForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
+    token ? 'loading' : 'error'
+  );
+  const [message, setMessage] = useState(token ? '' : 'Link invalid - token lipsa.');
 
   useEffect(() => {
     if (!token) {
-      setStatus('error');
-      setMessage('Link invalid — token lipsă.');
       return;
     }
 

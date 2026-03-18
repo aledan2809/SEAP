@@ -43,7 +43,7 @@ function LoginForm() {
       } else {
         router.push('/dashboard');
       }
-    } catch (err) {
+    } catch {
       setError('A apărut o eroare. Încearcă din nou.');
     } finally {
       setIsLoading(false);

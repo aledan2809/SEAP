@@ -73,7 +73,7 @@ export function TenderAnalysis({ analysis, tenderId }: TenderAnalysisProps) {
       if (!res.ok) throw new Error('Failed to analyze');
 
       toast.success('Analiza a fost pornită. Rezultatele vor apărea în curând.');
-    } catch (error) {
+    } catch {
       toast.error('Eroare la pornirea analizei');
     } finally {
       setIsAnalyzing(false);

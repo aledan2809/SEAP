@@ -8,7 +8,7 @@ import { logAction, AuditActions } from '@/lib/audit-log';
  * POST /api/admin/settings — updates system settings (admin only)
  */
 
-async function requireAdmin(request: NextRequest) {
+async function requireAdmin() {
   const session = await auth();
   if (!session?.user?.email) {
     return null;
@@ -21,8 +21,8 @@ async function requireAdmin(request: NextRequest) {
   return session;
 }
 
-export async function GET(request: NextRequest) {
-  const session = await requireAdmin(request);
+export async function GET() {
+  const session = await requireAdmin();
   if (!session) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await requireAdmin(request);
+  const session = await requireAdmin();
   if (!session) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

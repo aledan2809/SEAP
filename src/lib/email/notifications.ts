@@ -4,9 +4,43 @@
 
 import { prisma } from '@/lib/db';
 import { sendEmail } from './client';
-import { deadlineAlertEmail, newTenderEmail, dailyDigestEmail } from './templates';
+import {
+  deadlineAlertEmail,
+  newTenderEmail,
+  dailyDigestEmail,
+  opportunityReportEmail,
+} from './templates';
 
 const APP_URL = process.env.NEXTAUTH_URL || 'https://seap-assistant.vercel.app';
+const ADMIN_ROLES = new Set(['OWNER', 'ADMIN']);
+
+type OrganizationUserLink = {
+  role: string;
+  user: {
+    email: string;
+  };
+};
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function getNotificationRecipients(userOrganizations: OrganizationUserLink[]): string[] {
+  const adminEmails = userOrganizations
+    .filter((uo) => ADMIN_ROLES.has(uo.role))
+    .map((uo) => uo.user.email)
+    .filter(Boolean);
+
+  if (adminEmails.length > 0) {
+    return unique(adminEmails);
+  }
+
+  return unique(
+    userOrganizations
+      .map((uo) => uo.user.email)
+      .filter(Boolean)
+  );
+}
 
 /**
  * Send deadline alerts for watched tenders approaching deadline
@@ -38,7 +72,12 @@ export async function sendDeadlineAlerts(): Promise<{ sent: number; errors: numb
         organization: {
           include: {
             userOrganizations: {
-              include: { user: true },
+              select: {
+                role: true,
+                user: {
+                  select: { email: true },
+                },
+              },
             },
           },
         },
@@ -46,9 +85,9 @@ export async function sendDeadlineAlerts(): Promise<{ sent: number; errors: numb
     });
 
     for (const tender of tenders) {
-      const emails = tender.organization.userOrganizations
-        .map((uo) => uo.user.email)
-        .filter(Boolean) as string[];
+      const emails = getNotificationRecipients(
+        tender.organization.userOrganizations as OrganizationUserLink[]
+      );
 
       const template = deadlineAlertEmail({
         title: tender.title,
@@ -79,6 +118,78 @@ export async function sendDeadlineAlerts(): Promise<{ sent: number; errors: numb
 }
 
 /**
+ * Send deadline alerts for a specific tender.
+ */
+export async function sendDeadlineAlertForTender(
+  tenderId: string,
+  daysRemaining?: number
+): Promise<{ sent: number; errors: number }> {
+  const stats = { sent: 0, errors: 0 };
+  const tender = await prisma.tender.findUnique({
+    where: { id: tenderId },
+    include: {
+      organization: {
+        include: {
+          userOrganizations: {
+            select: {
+              role: true,
+              user: {
+                select: { email: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!tender || !tender.submissionDeadline) {
+    return stats;
+  }
+
+  const now = new Date();
+  const computedDaysRemaining = Math.ceil(
+    (new Date(tender.submissionDeadline).getTime() - now.getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+  const remaining = daysRemaining ?? computedDaysRemaining;
+
+  if (remaining <= 0) {
+    return stats;
+  }
+
+  const emails = getNotificationRecipients(
+    tender.organization.userOrganizations as OrganizationUserLink[]
+  );
+  const template = deadlineAlertEmail({
+    title: tender.title,
+    seapId: tender.seapId,
+    contractingAuth: tender.contractingAuth,
+    estimatedValue: tender.estimatedValue
+      ? `${Number(tender.estimatedValue).toLocaleString('ro-RO')} ${tender.currency}`
+      : undefined,
+    submissionDeadline: new Date(tender.submissionDeadline).toLocaleDateString('ro-RO', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    daysRemaining: remaining,
+    seapUrl: tender.seapUrl,
+    appUrl: `${APP_URL}/tenders/${tender.id}`,
+  });
+
+  for (const email of emails) {
+    const ok = await sendEmail({ to: email, ...template });
+    if (ok) stats.sent++;
+    else stats.errors++;
+  }
+
+  return stats;
+}
+
+/**
  * Send notification for newly discovered tenders
  */
 export async function sendNewTenderNotifications(tenderIds: string[]): Promise<{ sent: number }> {
@@ -91,7 +202,12 @@ export async function sendNewTenderNotifications(tenderIds: string[]): Promise<{
       organization: {
         include: {
           userOrganizations: {
-            include: { user: true },
+            select: {
+              role: true,
+              user: {
+                select: { email: true },
+              },
+            },
           },
         },
       },
@@ -99,9 +215,10 @@ export async function sendNewTenderNotifications(tenderIds: string[]): Promise<{
   });
 
   for (const tender of tenders) {
-    const emails = tender.organization.userOrganizations
-      .map((uo) => uo.user.email)
-      .filter(Boolean) as string[];
+    const now = new Date();
+    const emails = getNotificationRecipients(
+      tender.organization.userOrganizations as OrganizationUserLink[]
+    );
 
     const template = newTenderEmail({
       title: tender.title,
@@ -114,7 +231,10 @@ export async function sendNewTenderNotifications(tenderIds: string[]): Promise<{
         ? new Date(tender.submissionDeadline).toLocaleDateString('ro-RO')
         : 'N/A',
       daysRemaining: tender.submissionDeadline
-        ? Math.ceil((new Date(tender.submissionDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        ? Math.ceil(
+            (new Date(tender.submissionDeadline).getTime() - now.getTime()) /
+              (1000 * 60 * 60 * 24)
+          )
         : 0,
       seapUrl: tender.seapUrl,
       appUrl: `${APP_URL}/tenders/${tender.id}`,
@@ -123,6 +243,113 @@ export async function sendNewTenderNotifications(tenderIds: string[]): Promise<{
     for (const email of emails) {
       const ok = await sendEmail({ to: email, ...template });
       if (ok) stats.sent++;
+    }
+  }
+
+  return stats;
+}
+
+/**
+ * Send grouped opportunity reports to organization admins/owners.
+ */
+export async function sendOpportunityReports(
+  tenderIds: string[]
+): Promise<{ sent: number; reports: number }> {
+  const stats = { sent: 0, reports: 0 };
+  if (tenderIds.length === 0) return stats;
+
+  const tenders = await prisma.tender.findMany({
+    where: { id: { in: tenderIds } },
+    include: {
+      organization: {
+        include: {
+          userOrganizations: {
+            select: {
+              role: true,
+              user: {
+                select: { email: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const groups = new Map<
+    string,
+    {
+      organizationName: string;
+      recipients: string[];
+      opportunities: Array<{
+        title: string;
+        seapId: string;
+        contractingAuth: string;
+        estimatedValue?: string;
+        submissionDeadline: string;
+        matchScore?: number;
+        appUrl: string;
+        seapUrl: string;
+      }>;
+    }
+  >();
+
+  for (const tender of tenders) {
+    const existing = groups.get(tender.organizationId);
+    const recipients = getNotificationRecipients(
+      tender.organization.userOrganizations as OrganizationUserLink[]
+    );
+    const opportunity = {
+      title: tender.title,
+      seapId: tender.seapId,
+      contractingAuth: tender.contractingAuth,
+      estimatedValue: tender.estimatedValue
+        ? `${Number(tender.estimatedValue).toLocaleString('ro-RO')} ${tender.currency}`
+        : undefined,
+      submissionDeadline: tender.submissionDeadline
+        ? new Date(tender.submissionDeadline).toLocaleDateString('ro-RO')
+        : 'N/A',
+      matchScore: tender.matchScore ?? undefined,
+      seapUrl: tender.seapUrl,
+      appUrl: `${APP_URL}/tenders/${tender.id}`,
+    };
+
+    if (existing) {
+      existing.opportunities.push(opportunity);
+      existing.recipients = unique([...existing.recipients, ...recipients]);
+      continue;
+    }
+
+    groups.set(tender.organizationId, {
+      organizationName: tender.organization.name,
+      recipients,
+      opportunities: [opportunity],
+    });
+  }
+
+  for (const group of groups.values()) {
+    if (group.recipients.length === 0 || group.opportunities.length === 0) {
+      continue;
+    }
+
+    const template = opportunityReportEmail(
+      group.organizationName,
+      group.opportunities,
+      APP_URL
+    );
+
+    let atLeastOneSent = false;
+    for (const email of group.recipients) {
+      const ok = await sendEmail({ to: email, ...template });
+      if (ok) {
+        stats.sent++;
+        atLeastOneSent = true;
+      }
+    }
+
+    if (atLeastOneSent) {
+      stats.reports++;
     }
   }
 
@@ -148,6 +375,14 @@ export async function sendDailyDigests(): Promise<{ sent: number }> {
         include: {
           organization: {
             include: {
+              userOrganizations: {
+                select: {
+                  role: true,
+                  user: {
+                    select: { id: true, email: true },
+                  },
+                },
+              },
               tenders: {
                 where: {
                   OR: [
@@ -172,6 +407,13 @@ export async function sendDailyDigests(): Promise<{ sent: number }> {
 
   for (const user of users) {
     if (!user.email) continue;
+    const isAdminForAtLeastOneOrg = user.organizations.some((uo) =>
+      uo.organization.userOrganizations.some(
+        (membership) =>
+          membership.user.id === user.id && ADMIN_ROLES.has(membership.role)
+      )
+    );
+    if (!isAdminForAtLeastOneOrg) continue;
 
     let newCount = 0;
     const urgentDeadlines: { title: string; daysRemaining: number }[] = [];

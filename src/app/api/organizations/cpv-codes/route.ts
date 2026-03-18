@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { ALL_IT_CPV_CODES } from '@/lib/seap/cpv-codes';
 
 /**
  * GET /api/organizations/cpv-codes

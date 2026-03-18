@@ -83,9 +83,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  const now = new Date();
   const daysUntilDeadline = tender.submissionDeadline
     ? Math.ceil(
-        (new Date(tender.submissionDeadline).getTime() - Date.now()) /
+        (new Date(tender.submissionDeadline).getTime() - now.getTime()) /
           (1000 * 60 * 60 * 24)
       )
     : null;

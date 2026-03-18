@@ -1,102 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { generateTenderPdf } from '@/lib/pdf/generator';
 import { logAction, AuditActions } from '@/lib/audit-log';
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+// Dynamic imports to avoid SSR issues with @react-pdf/renderer
+export const dynamic = 'force-dynamic';
 
-  const { id } = await params;
+interface RouteContext {
+  params: Promise<{ id: string }>;
+}
 
-  const tender = await prisma.tender.findFirst({
-    where: {
-      id,
-      organization: {
-        userOrganizations: {
-          some: { userId: session.user.id },
+export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await context.params;
+
+    // Fetch tender with analysis
+    const tender = await prisma.tender.findFirst({
+      where: {
+        id,
+        organization: {
+          userOrganizations: {
+            some: { userId: session.user.id },
+          },
         },
       },
-    },
-    include: {
-      analysis: true,
-      organization: { select: { name: true } },
-    },
-  });
+      include: {
+        analysis: true,
+        organization: true,
+      },
+    });
 
-  if (!tender) {
-    return NextResponse.json({ error: 'Tender not found' }, { status: 404 });
+    if (!tender) {
+      return NextResponse.json({ error: 'Tender not found' }, { status: 404 });
+    }
+
+    // Generate PDF - dynamic import to avoid SSR issues
+    const { renderToBuffer } = await import('@react-pdf/renderer');
+    const { TenderPDFDocument } = await import('@/lib/pdf/tender-report');
+    const pdfBuffer = await renderToBuffer(TenderPDFDocument({ tender }));
+
+    // Audit log
+    await logAction({
+      userId: session.user.id,
+      userEmail: session.user.email,
+      action: AuditActions.TENDER_EXPORT_PDF,
+      resource: 'tender',
+      resourceId: tender.id,
+      request,
+    });
+
+    // Return PDF - convert Buffer to Uint8Array
+    const filename = `${tender.seapId}-raport.pdf`;
+    return new NextResponse(new Uint8Array(pdfBuffer), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (error) {
+    console.error('[PDF] Generation failed:', error);
+    return NextResponse.json(
+      { error: 'Failed to generate PDF' },
+      { status: 500 }
+    );
   }
-
-  const pdfBuffer = generateTenderPdf({
-    tender: {
-      title: tender.title,
-      seapId: tender.seapId,
-      seapUrl: tender.seapUrl,
-      description: tender.description,
-      contractingAuth: tender.contractingAuth,
-      contractingAuthCui: tender.contractingAuthCui,
-      estimatedValue: tender.estimatedValue ? Number(tender.estimatedValue).toLocaleString('ro-RO') : null,
-      currency: tender.currency,
-      cpvCode: tender.cpvCode,
-      cpvDescription: tender.cpvDescription,
-      procedureType: tender.procedureType,
-      contractType: tender.contractType,
-      publicationDate: tender.publicationDate
-        ? new Date(tender.publicationDate).toLocaleDateString('ro-RO')
-        : null,
-      submissionDeadline: tender.submissionDeadline
-        ? new Date(tender.submissionDeadline).toLocaleDateString('ro-RO', {
-            day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-          })
-        : null,
-      matchScore: tender.matchScore,
-      status: tender.status,
-    },
-    analysis: tender.analysis
-      ? {
-          recommendation: tender.analysis.recommendation,
-          aiSummary: tender.analysis.aiSummary || '',
-          strengths: tender.analysis.strengths as string[],
-          weaknesses: tender.analysis.weaknesses as string[],
-          opportunities: tender.analysis.opportunities as string[],
-          threats: tender.analysis.threats as string[],
-          confidence: tender.analysis.confidence || 0,
-          qualificationReqs: tender.analysis.qualificationReqs as Record<string, unknown> | null,
-          technicalSpecs: tender.analysis.technicalSpecs as Record<string, unknown> | null,
-          evaluationCriteria: tender.analysis.evaluationCriteria as Record<string, unknown> | null,
-          keyDates: tender.analysis.keyDates as Record<string, unknown> | null,
-        }
-      : null,
-    organizationName: tender.organization.name,
-    generatedAt: new Date().toLocaleDateString('ro-RO', {
-      day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-    }),
-  });
-
-  await logAction({
-    userId: session.user.id,
-    userEmail: session.user.email,
-    action: AuditActions.TENDER_EXPORT_PDF,
-    resource: 'tender',
-    resourceId: id,
-    details: { seapId: tender.seapId },
-  });
-
-  const filename = `raport-${tender.seapId}-${Date.now()}.pdf`;
-
-  return new NextResponse(new Uint8Array(pdfBuffer), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': pdfBuffer.length.toString(),
-    },
-  });
 }

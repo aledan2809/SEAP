@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Save, Search, X, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { IT_CPV_CODES, CPV_GROUPS } from '@/lib/seap/cpv-codes';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 
 interface Organization {
   id: string;
@@ -53,7 +54,7 @@ export function MonitoringSettings({ organization }: MonitoringSettingsProps) {
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
-            Trebuie să creezi mai întâi o organizație în tab-ul "Organizație"
+            Trebuie să creezi mai întâi o organizație în tab-ul &quot;Organizație&quot;
             pentru a configura monitorizarea.
           </p>
         </CardContent>
@@ -81,7 +82,7 @@ export function MonitoringSettings({ organization }: MonitoringSettingsProps) {
 
       toast.success('Setări de monitorizare salvate!');
       router.refresh();
-    } catch (error) {
+    } catch {
       toast.error('Eroare la salvarea setărilor');
     } finally {
       setIsLoading(false);
@@ -118,6 +119,13 @@ export function MonitoringSettings({ organization }: MonitoringSettingsProps) {
       code.toLowerCase().includes(cpvSearch.toLowerCase()) ||
       description.toLowerCase().includes(cpvSearch.toLowerCase())
   );
+
+  // Prepare options for combobox
+  const cpvOptions: ComboboxOption[] = Object.entries(IT_CPV_CODES).map(([code, description]) => ({
+    value: code,
+    label: code,
+    description,
+  }));
 
   return (
     <div className="space-y-6">
@@ -214,55 +222,22 @@ export function MonitoringSettings({ organization }: MonitoringSettingsProps) {
             </div>
           )}
 
-          {/* Search and select */}
+          {/* Combobox for CPV selection */}
           <div className="space-y-2">
-            <Label>Caută și adaugă coduri CPV:</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Caută după cod sau descriere..."
-                value={cpvSearch}
-                onChange={(e) => setCpvSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+            <Label>Caută și adaugă coduri CPV (autocomplete):</Label>
+            <Combobox
+              options={cpvOptions}
+              value={selectedCpvCodes}
+              onChange={setSelectedCpvCodes}
+              placeholder="Selectează coduri CPV..."
+              searchPlaceholder="Caută după cod sau descriere..."
+              emptyText="Niciun cod CPV găsit"
+              multiple
+            />
+            <p className="text-xs text-muted-foreground">
+              {selectedCpvCodes.length} coduri selectate din {cpvOptions.length} disponibile
+            </p>
           </div>
-
-          {/* CPV list */}
-          <div className="max-h-72 overflow-y-auto border rounded-md">
-            {filteredCpvCodes.length === 0 ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">
-                Niciun cod CPV găsit pentru "{cpvSearch}"
-              </div>
-            ) : (
-              filteredCpvCodes.map(([code, description]) => {
-                const isSelected = selectedCpvCodes.includes(code);
-                return (
-                  <div
-                    key={code}
-                    className={`flex items-center gap-3 p-2 hover:bg-accent cursor-pointer border-b last:border-b-0 ${
-                      isSelected ? 'bg-primary/5' : ''
-                    }`}
-                    onClick={() => toggleCpvCode(code)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleCpvCode(code)}
-                      className="h-4 w-4 shrink-0"
-                    />
-                    <span className="font-mono text-xs text-muted-foreground shrink-0">
-                      {code}
-                    </span>
-                    <span className="text-sm truncate">{description}</span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {filteredCpvCodes.length} coduri CPV {cpvSearch ? 'găsite' : 'disponibile'} &middot; {selectedCpvCodes.length} selectate
-          </p>
         </CardContent>
       </Card>
 

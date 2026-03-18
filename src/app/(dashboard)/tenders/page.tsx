@@ -98,6 +98,7 @@ export default async function TendersPage({ searchParams }: PageProps) {
 
   const totalCount = stats.reduce((acc, s) => acc + s._count, 0);
   const newCount = stats.find((s) => s.status === 'NEW')?._count || 0;
+  const now = new Date();
 
   return (
     <div className="space-y-6">
@@ -159,7 +160,7 @@ export default async function TendersPage({ searchParams }: PageProps) {
                 {tenders.map((tender) => {
                   const daysUntilDeadline = tender.submissionDeadline
                     ? Math.ceil(
-                        (new Date(tender.submissionDeadline).getTime() - Date.now()) /
+                        (new Date(tender.submissionDeadline).getTime() - now.getTime()) /
                           (1000 * 60 * 60 * 24)
                       )
                     : null;

@@ -13,6 +13,17 @@ interface TenderInfo {
   appUrl: string;
 }
 
+interface OpportunityReportItem {
+  title: string;
+  seapId: string;
+  contractingAuth: string;
+  estimatedValue?: string;
+  submissionDeadline: string;
+  matchScore?: number;
+  appUrl: string;
+  seapUrl: string;
+}
+
 function baseLayout(content: string): string {
   return `<!DOCTYPE html>
 <html lang="ro">
@@ -111,5 +122,57 @@ export function dailyDigestEmail(
       </div>
     `),
     text: `Rezumat zilnic: ${newTenders} licitații noi, ${urgentDeadlines.length} deadline-uri urgente.`,
+  };
+}
+
+export function opportunityReportEmail(
+  organizationName: string,
+  opportunities: OpportunityReportItem[],
+  appUrl: string
+): { subject: string; html: string; text: string } {
+  const rows = opportunities
+    .map((item) => `
+      <tr>
+        <td style="padding:10px;border-bottom:1px solid #eee;">
+          <div style="font-weight:600;margin-bottom:4px;">${item.title}</div>
+          <div style="font-size:12px;color:#666;">${item.seapId} • ${item.contractingAuth}</div>
+        </td>
+        <td style="padding:10px;border-bottom:1px solid #eee;font-size:13px;">
+          ${item.estimatedValue || '-'}
+        </td>
+        <td style="padding:10px;border-bottom:1px solid #eee;font-size:13px;">
+          ${item.submissionDeadline}
+        </td>
+        <td style="padding:10px;border-bottom:1px solid #eee;font-size:13px;text-align:center;">
+          ${typeof item.matchScore === 'number' ? `${item.matchScore}%` : '-'}
+        </td>
+      </tr>
+    `)
+    .join('');
+
+  return {
+    subject: `Raport oportunități: ${opportunities.length} licitații noi (${organizationName})`,
+    html: baseLayout(`
+      <div style="padding:12px 16px;background:#ecfdf5;border-left:4px solid #16a34a;border-radius:4px;margin-bottom:24px;">
+        <strong style="color:#166534;">Au fost identificate ${opportunities.length} oportunități noi.</strong>
+      </div>
+      <h2 style="margin:0 0 8px;font-size:18px;">${organizationName}</h2>
+      <p style="margin:0 0 16px;color:#666;">Raportul conține licitațiile noi potrivite profilului de monitorizare.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+          <tr style="background:#f8fafc;">
+            <th style="padding:10px;text-align:left;border-bottom:1px solid #e2e8f0;">Licitație</th>
+            <th style="padding:10px;text-align:left;border-bottom:1px solid #e2e8f0;">Valoare</th>
+            <th style="padding:10px;text-align:left;border-bottom:1px solid #e2e8f0;">Termen</th>
+            <th style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">Scor</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:24px;text-align:center;">
+        <a href="${appUrl}/tenders" style="display:inline-block;padding:12px 24px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;">Deschide Oportunitățile</a>
+      </div>
+    `),
+    text: `Raport oportunități ${organizationName}: ${opportunities.length} licitații noi. Vezi în aplicație: ${appUrl}/tenders`,
   };
 }

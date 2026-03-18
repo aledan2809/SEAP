@@ -4,19 +4,14 @@ import { Decimal } from '@prisma/client/runtime/library';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Creating test tender from real SEAP data...\n');
-
   // Get the Fabulosos organization
   const org = await prisma.organization.findUnique({
     where: { cui: 'RO33968578' },
   });
 
   if (!org) {
-    console.error('Organization Fabulosos not found!');
-    return;
+    throw new Error('Organization Fabulosos not found');
   }
-
-  console.log(`Found organization: ${org.name} (${org.id})`);
 
   // Check if test tender already exists
   const existingTender = await prisma.tender.findFirst({
@@ -24,9 +19,6 @@ async function main() {
   });
 
   if (existingTender) {
-    console.log(`Test tender already exists: ${existingTender.id}`);
-    console.log(`\nYou can test AI analysis at:`);
-    console.log(`https://seap-assistant.vercel.app/tenders/${existingTender.id}`);
     return;
   }
 
@@ -71,11 +63,6 @@ Criterii de atribuire:
     },
   });
 
-  console.log(`\nCreated test tender: ${tender.id}`);
-  console.log(`Title: ${tender.title}`);
-  console.log(`Value: ${tender.estimatedValue} ${tender.currency}`);
-  console.log(`CPV: ${tender.cpvCode}`);
-
   // Create a tender event
   await prisma.tenderEvent.create({
     data: {
@@ -86,17 +73,6 @@ Criterii de atribuire:
       seapDate: new Date('2024-01-15'),
     },
   });
-
-  console.log(`\nCreated publication event`);
-
-  console.log(`\n===========================================`);
-  console.log(`TEST TENDER CREATED SUCCESSFULLY!`);
-  console.log(`===========================================`);
-  console.log(`\nTo test AI analysis, go to:`);
-  console.log(`https://seap-assistant.vercel.app/tenders/${tender.id}`);
-  console.log(`\nOr locally:`);
-  console.log(`http://localhost:3000/tenders/${tender.id}`);
-  console.log(`\nThen click "Analizează cu AI" button.`);
 }
 
 main()

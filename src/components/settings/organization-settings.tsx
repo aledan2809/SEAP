@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Building2, Plus, Check, ChevronRight, UserPlus, Mail, Clock, XCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Save, Building2, Plus, ChevronRight, UserPlus, Mail, Clock, XCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Organization {
@@ -28,13 +28,11 @@ interface Organization {
 interface OrganizationSettingsProps {
   organizations: Organization[];
   activeOrganization: Organization | null;
-  userId: string;
 }
 
 export function OrganizationSettings({
   organizations,
   activeOrganization,
-  userId,
 }: OrganizationSettingsProps) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(!activeOrganization);
@@ -388,7 +386,7 @@ function InviteSection({ organizationId }: { organizationId: string }) {
 
   const fetchInvitations = useCallback(async () => {
     try {
-      const res = await fetch(`/api/organizations/${organizationId}/invitations`);
+      const res = await fetch('/api/invitations');
       if (res.ok) {
         const data = await res.json();
         setInvitations(data.invitations || []);
@@ -398,7 +396,7 @@ function InviteSection({ organizationId }: { organizationId: string }) {
     } finally {
       setLoadingInvites(false);
     }
-  }, [organizationId]);
+  }, []);
 
   useEffect(() => {
     fetchInvitations();
@@ -408,7 +406,7 @@ function InviteSection({ organizationId }: { organizationId: string }) {
     e.preventDefault();
     setIsSending(true);
     try {
-      const res = await fetch(`/api/organizations/${organizationId}/invitations`, {
+      const res = await fetch('/api/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: inviteEmail, role: inviteRole }),

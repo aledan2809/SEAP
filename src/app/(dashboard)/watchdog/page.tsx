@@ -15,13 +15,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Bell,
   BellOff,
   Eye,
   ExternalLink,
-  Clock,
   AlertTriangle,
-  CheckCircle,
   Activity,
 } from 'lucide-react';
 
@@ -74,12 +71,13 @@ export default async function WatchdogPage() {
       },
     },
   });
+  const now = new Date();
 
   // Get stats
   const urgentCount = watchedTenders.filter((t) => {
     if (!t.submissionDeadline) return false;
     const days = Math.ceil(
-      (new Date(t.submissionDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      (new Date(t.submissionDeadline).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
     );
     return days <= 7 && days > 0;
   }).length;
@@ -192,7 +190,7 @@ export default async function WatchdogPage() {
                 {watchedTenders.map((tender) => {
                   const daysUntilDeadline = tender.submissionDeadline
                     ? Math.ceil(
-                        (new Date(tender.submissionDeadline).getTime() - Date.now()) /
+                        (new Date(tender.submissionDeadline).getTime() - now.getTime()) /
                           (1000 * 60 * 60 * 24)
                       )
                     : null;
