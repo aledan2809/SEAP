@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { execSync } from 'child_process';
 
 // Types based on Prisma schema
 interface TenderForAnalysis {
@@ -125,36 +126,61 @@ Răspunde cu un JSON valid având exact această structură:
 }`;
 }
 
+/**
+ * Analyze with Claude CLI (no API credits needed, uses user's Claude Code session).
+ * Falls back to API if CLI is not available.
+ */
+async function analyzeWithClaudeCLI(prompt: string): Promise<string> {
+  const fullPrompt = `${SYSTEM_PROMPT}\n\n${prompt}`;
+  // Use claude CLI with --print flag for non-interactive output
+  const result = execSync(
+    `claude -p --output-format text`,
+    {
+      input: fullPrompt,
+      encoding: 'utf-8',
+      timeout: 120_000,
+      maxBuffer: 1024 * 1024,
+      env: { ...process.env, ANTHROPIC_API_KEY: undefined }, // Don't inherit API key for CLI
+    }
+  );
+  return result.trim();
+}
+
 export async function analyzeWithClaude(tender: TenderForAnalysis): Promise<AnalysisResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const prompt = buildAnalysisPrompt(tender);
+  let responseText: string;
+  let modelUsed: string;
 
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is not configured');
+  // Strategy: try Claude CLI first (no API credits), then API fallback
+  try {
+    console.log('Trying Claude CLI for analysis...');
+    responseText = await analyzeWithClaudeCLI(prompt);
+    modelUsed = 'claude-cli';
+    console.log('Claude CLI analysis succeeded');
+  } catch (cliError) {
+    console.log('Claude CLI not available, trying API...', (cliError as Error).message);
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error('Neither Claude CLI nor ANTHROPIC_API_KEY available for analysis');
+    }
+
+    const client = new Anthropic({ apiKey });
+    modelUsed = 'claude-sonnet-4-20250514';
+
+    const message = await client.messages.create({
+      model: modelUsed,
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const textContent = message.content.find((block) => block.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text response from Claude API');
+    }
+    responseText = textContent.text.trim();
   }
-
-  const client = new Anthropic({ apiKey });
-  const modelId = 'claude-sonnet-4-20250514';
-
-  const message = await client.messages.create({
-    model: modelId,
-    max_tokens: 4096,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: buildAnalysisPrompt(tender),
-      },
-    ],
-  });
-
-  // Extract text content from response
-  const textContent = message.content.find((block) => block.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
-    throw new Error('No text response from Claude');
-  }
-
-  // Parse JSON response
-  const responseText = textContent.text.trim();
 
   // Extract JSON from potential markdown code blocks
   let jsonText = responseText;
@@ -167,7 +193,7 @@ export async function analyzeWithClaude(tender: TenderForAnalysis): Promise<Anal
   try {
     parsed = JSON.parse(jsonText);
   } catch {
-    console.error('Failed to parse Claude response:', responseText);
+    console.error('Failed to parse Claude response:', responseText.substring(0, 500));
     throw new Error('Invalid JSON response from Claude');
   }
 
@@ -198,7 +224,7 @@ export async function analyzeWithClaude(tender: TenderForAnalysis): Promise<Anal
         : null,
     confidence:
       typeof parsed.confidence === 'number' ? Math.min(1, Math.max(0, parsed.confidence)) : 0.7,
-    modelUsed: modelId,
+    modelUsed,
   };
 
   return result;
