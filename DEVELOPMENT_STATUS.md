@@ -1,81 +1,64 @@
 # SEAP Assistant - Development Status
 
-**Last Updated:** 2026-03-18 08:30
-**Status:** ACTIVE DEVELOPMENT - Phase 3 DONE ✅
+**Last Updated:** 2026-03-18 11:10
+**Status:** DEPLOYED - All phases complete, production live
 **URL:** https://seap-assistant.vercel.app
 
 ---
 
-## Progres sesiune 2026-03-17 → 2026-03-18
+## Sesiune 2026-03-18 (continuare)
 
-### SEAP Phase 1 ✅ (pipe_seap_mmuxaugu_ekl03k — DONE)
-- [x] **Mobile responsive sidebar** — hamburger + Sheet overlay (mobile)
-- [x] **CPV code autocomplete** — Combobox + Command + Popover în Settings
-- [x] **Email notifications service** — src/lib/notifications/email-service.ts + templates
-- [x] **PDF export endpoint** — /api/tenders/[id]/pdf (GET → PDF file)
-- [x] **CPV codes API** — /api/organizations/cpv-codes
-- [x] TypeScript: 0 erori
+### Completate acum
+- [x] **Git commit** — 46 fișiere, Phase 1-3 comise (`3d3d181`)
+- [x] **Claude CLI fallback** — analyzer folosește `claude -p` când API-ul nu are credit (`09eee60`)
+- [x] **Cron fix** — scan la 7 AM UTC zilnic (Vercel Hobby limit) + deadline check la 9 AM UTC (`d7a642a`)
+- [x] **Google OAuth** — credentials adăugate în .env + Vercel env vars
+- [x] **Vercel env vars** — GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, DAILY_DIGEST_HOUR_UTC, DAILY_DIGEST_MINUTE_WINDOW
+- [x] **Deploy Vercel** — build success, 0 erori TypeScript, LIVE
+- [x] **OCR service** — pornit pe localhost:8000 (D:\Projects\ocr-model)
+- [x] **SEAP scanner** — funcționează independent (direct SEAP API), 319 licitații în DB
+- [x] **Claude analysis test** — CLI fallback verificat pe licitație reală (SWOT complet în română)
 
-### SEAP Phase 2 ✅ (pipe_seap2_mmv2xiqj_ra49sg — DONE)
-- [x] **Audit log API** — /api/admin/audit-logs/route.ts
-- [x] **Invitations API** — /api/invitations/route.ts (send + list)
-- [x] TypeScript: 0 erori
-
-### SEAP Phase 3 ✅ (pipe_seap3_mmvmpzsp_ngao0b — DONE)
-- [x] **Dark mode** — ThemeProvider în layout.tsx (next-themes)
-- [x] **Invitations page** — /src/app/(dashboard)/invitations/page.tsx
-- [x] **Cron deadline notifications** — vercel.json cron `0 9 * * *` → /api/notifications/deadline-check
-- [x] **n8n webhook improvements** — WEBHOOK_SECRET validation + better error handling
-- [x] TypeScript: 0 erori
+### Phase 1-3 (sesiunea anterioară)
+- [x] Mobile responsive sidebar, CPV autocomplete, email notifications, PDF export
+- [x] Audit log API, Invitations API
+- [x] Dark mode, Invitations page, Cron deadline notifications, n8n webhook improvements
 
 ---
 
-## TODO Ramas
+## Stare curentă
 
-### High Priority (necesită servicii externe)
-- [ ] Configurare n8n workflow real (SEAP scraper) — necesită n8n instance
-- [ ] Test Claude API cu licitație reală — necesită ANTHROPIC_API_KEY activ
-- [ ] Setup R2 credentials pentru document storage — necesită R2 bucket + keys
-- [ ] Pornire OCR service — necesită C:\Projects\ocr-model pornit
+### Funcțional
+- **Scanner SEAP** — direct API call la e-licitatie.ro, CPV matching, keyword matching
+- **AI Analysis** — Claude CLI (gratuit) cu fallback la API; SWOT complet, recommendation GO/CAUTION/NO_GO
+- **Email notifications** — opportunity reports, deadline alerts, daily digests
+- **PDF export** — /api/tenders/[id]/pdf
+- **Dark mode** — next-themes
+- **Cron jobs** — scan zilnic 7 AM UTC, deadline check 9 AM UTC
+- **Google OAuth** — cod complet, credentials configurate
+- **OCR** — serviciu local FastAPI pe port 8000
 
-### Low Priority (mai pot fi implementate)
-- [ ] Google OAuth activation (verifica .env pentru GOOGLE_CLIENT_ID)
-- [ ] Deploy pe Vercel cu toate variabilele de environment actualizate
-
----
-
-## Pipeline Autonomous Monitor (activ)
-- **Cron job**: job ID `283ccae3` (every 5 min, auto-expires 3 days)
-- **Script**: `C:/Projects/Master/mesh/state/auto-cycle.cjs`
-- **Log**: `C:/Projects/Master/mesh/state/auto-monitor.log`
-- UtilajHub Phase 7: `pipe_uh7_mmv324yc` — dev (running)
-- MarketingAutomation email: `pipe_ma_email_mmvnljys` — running
-- Source platform: `pipe_mmvnqwmq_he7guw` — running
+### Necesită acțiune manuală
+- [ ] **Google Cloud Console** — adaugă redirect URI: `https://seap-assistant.vercel.app/api/auth/callback/google`
+- [ ] **Cloudflare R2** — creează bucket `seap-documents` și completează R2_ACCOUNT_ID/ACCESS_KEY/SECRET_KEY (storage local funcționează ca fallback)
+- [ ] **Anthropic API credits** — reîncarcă credit pentru analiza directă API (CLI merge ca fallback)
+- [ ] **n8n cloud** — aledan.app.n8n.cloud e offline; scanner-ul merge independent fără n8n
 
 ---
 
-## Fișiere noi create în această sesiune
-```
-src/app/(dashboard)/invitations/page.tsx        ← Invitations page
-src/app/api/admin/audit-logs/route.ts           ← Audit log API
-src/app/api/admin/settings/route.ts             ← Admin settings
-src/app/api/invitations/route.ts                ← Invitations CRUD
-src/app/api/notifications/deadline-check/       ← Deadline check API
-src/app/api/organizations/cpv-codes/route.ts    ← CPV codes API
-src/app/api/tenders/[id]/pdf/route.ts           ← PDF export
-src/app/api/webhooks/n8n/route.ts               ← n8n webhook (updated)
-src/components/dashboard/sidebar.tsx            ← Mobile responsive (updated)
-src/components/settings/monitoring-settings.tsx ← CPV autocomplete (updated)
-src/components/ui/combobox.tsx                  ← New component
-src/components/ui/command.tsx                   ← New component
-src/components/ui/popover.tsx                   ← New component
-src/lib/email/notifications.ts                  ← Email notifications
-src/lib/email/templates.ts                      ← Email templates
-src/lib/notifications/email-service.ts          ← Email service
-vercel.json                                     ← Cron jobs added
-```
+## Technical Notes
 
----
+### Architecture
+- **Scanner**: `src/lib/seap/scanner.ts` — single POST to SEAP API, client-side CPV/keyword filtering
+- **Analyzer**: `src/lib/ai/analyzer.ts` — Claude CLI first, then API fallback
+- **Storage**: `src/lib/storage/index.ts` — R2 with local filesystem fallback
+- **Auth**: NextAuth v5 + PrismaAdapter, JWT sessions, Credentials + Google OAuth
+- **DB**: Neon PostgreSQL, 319 tenders, 1 organization
 
-## Git Status (uncommitted)
-Toate modificările sunt nesalvate în git. Recomand: `git add -A && git commit -m "feat: Phase 1-3 features - sidebar, CPV, email, PDF, dark mode, invitations, audit log, cron"`
+### Vercel Config
+- Hobby plan: 2 daily crons max
+- Env vars: DATABASE_URL, DIRECT_URL, AUTH_SECRET, AUTH_TRUST_HOST, NEXTAUTH_URL, ANTHROPIC_API_KEY, N8N_API_KEY, CRON_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, DAILY_DIGEST_HOUR_UTC, DAILY_DIGEST_MINUTE_WINDOW
+
+### Git Status
+- All committed, 3 commits this session
+- Latest: `d7a642a` — cron fix for Vercel Hobby
