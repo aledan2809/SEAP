@@ -33,8 +33,14 @@ export default function RegisterPage() {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Parola trebuie să aibă minim 6 caractere');
+    if (formData.password.length < 8) {
+      setError('Parola trebuie să aibă minim 8 caractere');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
+      setError('Parola trebuie să conțină litere mari, litere mici și cifre');
       setIsLoading(false);
       return;
     }
@@ -84,7 +90,7 @@ export default function RegisterPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+              <div id="register-error" role="alert" className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
                 {error}
               </div>
             )}
@@ -98,6 +104,7 @@ export default function RegisterPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
+                aria-describedby={error ? 'register-error' : undefined}
               />
             </div>
 
@@ -110,6 +117,7 @@ export default function RegisterPage() {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
+                aria-describedby={error ? 'register-error' : undefined}
               />
             </div>
 
@@ -121,7 +129,11 @@ export default function RegisterPage() {
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
+                aria-describedby={error ? 'register-error password-hint' : 'password-hint'}
               />
+              <p id="password-hint" className="text-xs text-muted-foreground">
+                Minim 8 caractere, litere mari, litere mici și cifre
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -132,6 +144,7 @@ export default function RegisterPage() {
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                 required
+                aria-describedby={error ? 'register-error' : undefined}
               />
             </div>
 

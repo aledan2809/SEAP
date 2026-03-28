@@ -573,3 +573,260 @@ All 29 P0 security patches verified by code inspection:
 ---
 
 *Report updated: 2026-03-28 | Tester Phase 3 | Big Pipeline*
+
+---
+
+## Phase 4: P1 Issues Fix (2026-03-28)
+
+**Scope**: Accessibility, Security Hardening, UX Improvements, Documentation
+**Files modified**: 11 source files + 2 documentation files
+
+---
+
+### P1-ACC-001: Missing Accessible Names on Icon Buttons
+**Type**: Accessibility | **Severity**: P1
+**Before**: 11+ icon buttons across header, tenders, documents, watchdog had no `aria-label`. Screen readers announced "button" without context.
+**After**: All icon buttons have descriptive `aria-label` attributes (e.g., "Notificări", "Vezi detalii", "Deschide pe SEAP", "Descarcă [filename]").
+**Files**: `header.tsx`, `tenders/page.tsx`, `documents/page.tsx`, `watchdog/page.tsx`, `tenders/[id]/page.tsx`
+
+---
+
+### P1-ACC-002: Table Headers Missing Scope Attribute
+**Type**: Accessibility | **Severity**: P1
+**Before**: `<th>` elements had no `scope` attribute — header-cell associations broken for screen readers.
+**After**: `TableHead` component defaults to `scope="col"`.
+**File**: `src/components/ui/table.tsx`
+
+---
+
+### P1-ACC-003: Form Errors Not Associated with Input Fields
+**Type**: Accessibility | **Severity**: P1
+**Before**: Error messages on login/register were plain `<div>` elements with no semantic link to inputs. Register page inputs did not reference the error via `aria-describedby`.
+**After**: Errors have `id`, `role="alert"`, and all inputs reference them via `aria-describedby` (conditionally, only when error is present). Password field combines both `register-error` and `password-hint` references.
+**Files**: `login/page.tsx`, `register/page.tsx`
+
+---
+
+### P1-ACC-004: Color-Only Information (WCAG Violation)
+**Type**: Accessibility | **Severity**: P1
+**Before**: Match score badges used only color (green/yellow/gray). Urgent deadlines used only red/orange text.
+**After**: Match score badges have `title` with text label ("Potrivire ridicată/medie/scăzută"). Urgent deadlines show "— urgent!" text.
+**Files**: `tenders/page.tsx`, `watchdog/page.tsx`
+
+---
+
+### P1-ACC-005: Search/Filter Controls Missing Labels
+**Type**: Accessibility | **Severity**: P1
+**Before**: Search input used placeholder as sole label. Clear (X) button had no accessible name. Status select had no label.
+**After**: Search icon `aria-hidden="true"`, input has `aria-label="Caută licitații"`, clear button has `aria-label="Șterge căutarea"`, select has `aria-label="Filtrează după status"`.
+**File**: `src/components/tenders/tender-filters.tsx`
+
+---
+
+### P1-ACC-006: Decorative SVGs and Avatar Alt Text
+**Type**: Accessibility | **Severity**: P1
+**Before**: Google logo SVG announced by screen readers. Avatar alt text defaulted to empty string.
+**After**: Google SVG has `aria-hidden="true"`. Avatar fallback alt is `"Avatar utilizator"`.
+**Files**: `login/page.tsx`, `header.tsx`
+
+---
+
+### P1-SEC-001: Webhook Replay Attack Vulnerability
+**Type**: Security | **Severity**: P1
+**Before**: Webhook accepted events regardless of timestamp — captured payloads could be replayed.
+**After**: Events with timestamps older than 5 minutes are rejected with 400.
+**File**: `src/app/api/webhooks/n8n/route.ts`
+
+---
+
+### P1-SEC-002: Scan Endpoint Admin Role Session-Only Check
+**Type**: Security | **Severity**: P1
+**Before**: `/api/scan` checked `session.user.role` which could be stale.
+**After**: Admin role verified from DB via `userOrganization` table lookup.
+**File**: `src/app/api/scan/route.ts`
+
+---
+
+### P1-UX-001: Missing Password Requirements Hint
+**Type**: UX / Error Handling | **Severity**: P1
+**Before**: Password field had no hint — users discovered requirements only after validation failure.
+**After**: Hint text "Minim 8 caractere, litere mari, litere mici și cifre" shown below field, linked via `aria-describedby`.
+**File**: `src/app/(auth)/register/page.tsx`
+
+---
+
+### P1-DOC-001: CHANGELOG and STRATEGY Outdated
+**Type**: Documentation | **Severity**: P1
+**Before**: CHANGELOG ended at 2026-03-19. STRATEGY last updated 2026-03-22.
+**After**: Both updated with 2026-03-28 P1 audit fix entries.
+**Files**: `CHANGELOG.md`, `STRATEGY.md`
+
+---
+
+### Phase 4 Summary
+
+| # | Issue ID | Type | Status |
+|---|----------|------|--------|
+| 1 | P1-ACC-001 | Accessibility — Icon button labels | FIXED |
+| 2 | P1-ACC-002 | Accessibility — Table header scope | FIXED |
+| 3 | P1-ACC-003 | Accessibility — Form error associations | FIXED |
+| 4 | P1-ACC-004 | Accessibility — Color-only indicators | FIXED |
+| 5 | P1-ACC-005 | Accessibility — Search/filter labels | FIXED |
+| 6 | P1-ACC-006 | Accessibility — Decorative SVG/avatar | FIXED |
+| 7 | P1-SEC-001 | Security — Webhook replay protection | FIXED |
+| 8 | P1-SEC-002 | Security — Scan admin DB check | FIXED |
+| 9 | P1-UX-001 | UX — Password hint | FIXED |
+| 10 | P1-DOC-001 | Documentation — CHANGELOG/STRATEGY | FIXED |
+
+**Total P1 issues fixed: 10/10**
+
+### Out-of-Scope (External Configuration)
+
+| Issue | Reason |
+|-------|--------|
+| Google OAuth redirect URIs | Requires Google Cloud Console access |
+| Anthropic API credits | Requires billing action |
+| OCR on Vercel | Requires architecture change |
+| n8n DNS | Requires DNS record configuration |
+
+### Build Status
+
+- TypeScript: **PASS** (no new errors)
+- Next.js build: **Pre-existing failure** (useContext SSG issue from prior phases — not a regression)
+
+---
+
+*Phase 4 complete — 2026-03-28 | Website Guru | Big Pipeline*
+
+---
+
+## Phase 2 (Re-run): Google OAuth UX + Security Test Coverage (2026-03-28)
+
+### P0-030: Google OAuth Button Displayed When Not Configured
+**Type**: Authentication / UX | **Severity**: P0
+**Before**: Login page always rendered "Conectare cu Google" button regardless of whether `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` env vars were configured. Clicking the button when OAuth wasn't configured caused a confusing NextAuth error.
+**Fix**:
+1. Created `src/app/api/auth/providers-info/route.ts` — lightweight GET endpoint returning `{ google: boolean }`
+2. Updated `src/app/(auth)/login/page.tsx` — fetches provider availability on mount, conditionally renders Google button + "sau" separator only when `googleEnabled` is true
+**After**: Google button hidden when not configured, appears automatically when properly set up. No information leakage (only boolean exposed).
+**Test**: `src/__tests__/security/providers-info.test.ts` — 3 tests (missing vars, partial config, full config)
+
+---
+
+### P0-031: Missing Security-Focused Test Coverage
+**Type**: Testing / Regression Safety | **Severity**: P0
+**Before**: Existing 7 test suites (31 tests) covered API functionality but not security paths (rate limit denial, CSRF blocking, auth bypass attempts).
+**Fix**: Added 4 security test suites:
+- `src/__tests__/security/rate-limiting.test.ts` — 7 tests: within-limit, over-limit blocking, IP isolation, namespace isolation, IP header extraction priority
+- `src/__tests__/security/csrf-middleware.test.ts` — 10 tests: GET passthrough, missing/unknown/malformed origin blocked, allowed origins pass, webhook/cron exemptions
+- `src/__tests__/security/auth-bypass.test.ts` — 9 tests: admin endpoints auth+role check, org membership enforcement, tender access, cron secret, user profile auth
+- `src/__tests__/security/providers-info.test.ts` — 3 tests: provider availability endpoint
+**After**: **11 test suites, 60 tests, all passing**. Security regressions now caught automatically.
+
+### Test Results
+```
+Test Suites: 11 passed, 11 total
+Tests:       60 passed, 60 total
+Time:        0.842 s
+```
+
+---
+
+*Phase 2 (re-run) complete — 2026-03-28 | Website Guru | Big Pipeline*
+
+---
+
+## Phase 4 (Re-run): Remaining P1 Gaps Fixed (2026-03-28)
+
+Verification pass discovered 7 remaining P1 issues missed in the initial Phase 4.
+
+---
+
+### P1-ACC-007: Sidebar Navigation Missing `aria-current="page"`
+**Type**: Accessibility (WCAG 3.3.1) | **Severity**: P1
+**Before**: Active navigation link was distinguished only by CSS styling (background color). Screen readers had no semantic indicator of the current page.
+**After**: Active `<Link>` elements include `aria-current="page"` attribute. Screen readers now announce the current page.
+**File**: `src/components/dashboard/sidebar.tsx`
+
+---
+
+### P1-ACC-008: Decorative Navigation Icons Not Hidden from Screen Readers
+**Type**: Accessibility | **Severity**: P1
+**Before**: Navigation icons (LayoutDashboard, Search, etc.) and logo icons (Building2) were announced by screen readers, creating noise.
+**After**: All decorative icons have `aria-hidden="true"`.
+**File**: `src/components/dashboard/sidebar.tsx`
+
+---
+
+### P1-ACC-009: Theme Toggle Missing `aria-label`
+**Type**: Accessibility | **Severity**: P1
+**Before**: Theme toggle button used only `title` attribute. Screen readers don't reliably announce `title` — button announced as unlabeled.
+**After**: Added `aria-label` with descriptive text ("Comută la mod luminos" / "Comută la mod întunecat"). Sun/Moon icons marked `aria-hidden="true"`.
+**File**: `src/components/theme-toggle.tsx`
+
+---
+
+### P1-ACC-010: User Menu Button Missing Accessible Name
+**Type**: Accessibility | **Severity**: P1
+**Before**: User avatar dropdown trigger was a button containing only an avatar image — no accessible name for screen readers.
+**After**: Added `aria-label="Meniu utilizator"` to the dropdown trigger button.
+**File**: `src/components/dashboard/header.tsx`
+
+---
+
+### P1-SEC-003: Missing Rate Limiting on GET /api/invitations
+**Type**: Security — Enumeration/DoS | **Severity**: P1
+**Before**: GET endpoint for listing invitations had no rate limiting. Could be abused for rapid enumeration.
+**After**: Added `checkRateLimit()` with `RATE_LIMITS.api` (60 req/min per IP).
+**File**: `src/app/api/invitations/route.ts`
+
+---
+
+### P1-SEC-004: Missing Rate Limiting on DELETE /api/invitations
+**Type**: Security — Abuse | **Severity**: P1
+**Before**: DELETE endpoint for canceling invitations had no rate limiting.
+**After**: Added `checkRateLimit()` with `RATE_LIMITS.sensitive` (20 req/min per IP).
+**File**: `src/app/api/invitations/route.ts`
+
+---
+
+### P1-SEC-005: Missing Rate Limiting on GET/POST /api/organizations/[id]
+**Type**: Security — DoS/Abuse | **Severity**: P1
+**Before**: Organization details GET and switch-org POST had no rate limiting.
+**After**: Added `checkRateLimit()` — GET uses `RATE_LIMITS.api` (60/min), POST uses `RATE_LIMITS.sensitive` (20/min).
+**File**: `src/app/api/organizations/[id]/route.ts`
+
+---
+
+### P1-SEC-006: Missing Rate Limiting on GET /api/organizations/[id]/invitations
+**Type**: Security — Enumeration | **Severity**: P1
+**Before**: Organization invitations listing had no rate limiting.
+**After**: Added `checkRateLimit()` with `RATE_LIMITS.api` (60 req/min per IP).
+**File**: `src/app/api/organizations/[id]/invitations/route.ts`
+
+---
+
+### Phase 4 (Re-run) Summary
+
+| # | Issue ID | Type | Status |
+|---|----------|------|--------|
+| 1 | P1-ACC-007 | Accessibility — aria-current on nav | FIXED |
+| 2 | P1-ACC-008 | Accessibility — decorative icon hiding | FIXED |
+| 3 | P1-ACC-009 | Accessibility — theme toggle aria-label | FIXED |
+| 4 | P1-ACC-010 | Accessibility — user menu aria-label | FIXED |
+| 5 | P1-SEC-003 | Security — GET invitations rate limit | FIXED |
+| 6 | P1-SEC-004 | Security — DELETE invitations rate limit | FIXED |
+| 7 | P1-SEC-005 | Security — org GET/POST rate limits | FIXED |
+| 8 | P1-SEC-006 | Security — org invitations GET rate limit | FIXED |
+
+**Total additional P1 issues fixed: 8**
+
+### Verification
+
+- **TypeScript**: PASS (0 source errors)
+- **Tests**: 11 suites, 60 tests — all passing
+- **Rate limit coverage**: All 21+ API route handlers now have rate limiting
+
+---
+
+*Phase 4 (re-run) complete — 2026-03-28 | Website Guru | Big Pipeline*
