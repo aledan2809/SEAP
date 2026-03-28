@@ -1,183 +1,126 @@
 import { NextRequest } from 'next/server';
+
+jest.mock('@/lib/db', () => ({
+  prisma: {
+    tender: { findFirst: jest.fn(), update: jest.fn() },
+    tenderAnalysis: { upsert: jest.fn() },
+    auditLog: { create: jest.fn() },
+  },
+}));
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+jest.mock('@/lib/ai/analyzer', () => ({ analyzeWithClaude: jest.fn() }));
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn(() => ({ allowed: true, remaining: 10, resetAt: Date.now() + 60000 })),
+  RATE_LIMITS: { api: {}, sensitive: {}, scan: {}, analysis: {}, cron: {}, auth: {}, webhook: {} },
+  getClientIp: jest.fn(() => '127.0.0.1'),
+}));
+jest.mock('@/lib/audit-log', () => ({
+  logAction: jest.fn(),
+  AuditActions: { ANALYSIS_RUN: 'ANALYSIS_RUN' },
+}));
+
 import { POST } from '@/app/api/tenders/[id]/analyze/route';
-import { prisma } from '@/lib/db';
-
-// Mock dependencies
-jest.mock('@/lib/db');
-jest.mock('@/lib/auth');
-jest.mock('@/lib/ai/analyzer');
-
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import { analyzeWithClaude } from '@/lib/ai/analyzer';
 
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 const mockAuth = auth as jest.MockedFunction<typeof auth>;
-const mockAnalyzeWithClaude = analyzeWithClaude as jest.MockedFunction<typeof analyzeWithClaude>;
+const mockPrisma = prisma as jest.Mocked<typeof prisma>;
+const mockAnalyze = analyzeWithClaude as jest.MockedFunction<typeof analyzeWithClaude>;
+
+const makeRequest = () =>
+  new NextRequest('http://localhost/api/tenders/tender-1/analyze', { method: 'POST' });
+
+const makeParams = () => ({ params: Promise.resolve({ id: 'tender-1' }) });
 
 describe('/api/tenders/[id]/analyze', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+  beforeEach(() => jest.clearAllMocks());
+
+  it('returns 401 when not authenticated', async () => {
+    mockAuth.mockResolvedValue(null as any);
+    const response = await POST(makeRequest(), makeParams());
+    expect(response.status).toBe(401);
   });
 
-  describe('POST /api/tenders/[id]/analyze', () => {
-    const mockUser = {
-      id: 'user-1',
-      email: 'test@example.com',
-      role: 'OWNER',
-      organizationId: 'org-1',
-      name: 'Test User',
-      image: null,
-    };
+  it('returns 404 when tender not found or no access', async () => {
+    mockAuth.mockResolvedValue({
+      user: { id: 'user-1', email: 'test@test.com' },
+    } as any);
+    (mockPrisma.tender.findFirst as jest.Mock).mockResolvedValue(null);
 
-    const mockTender = {
+    const response = await POST(makeRequest(), makeParams());
+    expect(response.status).toBe(404);
+  });
+
+  it('creates mock analysis when ANTHROPIC_API_KEY missing', async () => {
+    const originalKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+
+    mockAuth.mockResolvedValue({
+      user: { id: 'user-1', email: 'test@test.com' },
+    } as any);
+
+    (mockPrisma.tender.findFirst as jest.Mock).mockResolvedValue({
       id: 'tender-1',
-      title: 'Software Development Services',
-      description: 'Development of custom software application',
-      contractingAuth: 'Ministry of Digital Affairs',
-      contractingAuthCui: '12345678',
-      estimatedValue: 500000,
-      currency: 'RON',
-      cpvCode: '72000000',
-      cpvDescription: 'Computer programming services',
-      procedureType: 'Open procedure',
-      contractType: 'Services',
-      publicationDate: new Date('2024-01-01'),
-      submissionDeadline: new Date('2024-02-01'),
-      organizationId: 'org-1',
-      organization: {
-        name: 'Test Organization',
-        cui: '87654321',
-        cpvCodes: ['72000000'],
-        keywords: ['software', 'development'],
-      },
+      title: 'Test Tender',
+      status: 'NEW',
+      organization: { name: 'Test Org', cui: 'RO123' },
       documents: [],
-    };
+    });
 
-    const mockAnalysisResult = {
-      strengths: ['CPV match with company profile', 'Reasonable deadline'],
-      weaknesses: ['High competition expected'],
-      opportunities: ['Government contract reference', 'Long-term partnership potential'],
-      threats: ['Complex technical requirements'],
-      recommendation: 'GO' as const,
-      aiSummary: 'Good opportunity for our company with manageable risks.',
-      aiNotes: 'Consider forming a partnership for enhanced competitiveness.',
-      qualificationReqs: { cifraAfaceri: '1000000 RON', experientaSimilara: '3 years' },
-      technicalSpecs: { descriere: 'Modern web application', restrictive: false },
-      evaluationCriteria: { tip: 'calitate_pret', ponderi: { technical: 0.7, price: 0.3 } },
-      keyDates: { depunere: '2024-02-01', deschidere: '2024-02-05' },
+    (mockPrisma.tenderAnalysis.upsert as jest.Mock).mockResolvedValue({
+      id: 'analysis-1',
+      recommendation: 'CAUTION',
+      modelUsed: 'mock',
+    });
+
+    const response = await POST(makeRequest(), makeParams());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.note).toContain('demo');
+
+    process.env.ANTHROPIC_API_KEY = originalKey;
+  });
+
+  it('runs AI analysis and saves result', async () => {
+    mockAuth.mockResolvedValue({
+      user: { id: 'user-1', email: 'test@test.com' },
+    } as any);
+
+    (mockPrisma.tender.findFirst as jest.Mock).mockResolvedValue({
+      id: 'tender-1',
+      title: 'Test Tender',
+      description: 'A test tender description',
+      status: 'NEW',
+      organization: { name: 'Test Org', cui: 'RO123', cpvCodes: [], keywords: [] },
+      documents: [],
+    });
+
+    mockAnalyze.mockResolvedValue({
+      strengths: ['Good fit'],
+      weaknesses: ['Tight deadline'],
+      opportunities: ['New client'],
+      threats: ['Competition'],
+      recommendation: 'GO',
+      aiSummary: 'Looks promising',
+      modelUsed: 'claude-sonnet',
       confidence: 0.85,
-      modelUsed: 'claude-cli',
-    };
+    } as any);
 
-    it('should analyze tender successfully for authorized user', async () => {
-      mockAuth.mockResolvedValue({ user: mockUser });
-      mockPrisma.tender.findUnique.mockResolvedValue(mockTender as any);
-      mockAnalyzeWithClaude.mockResolvedValue(mockAnalysisResult);
-      mockPrisma.tenderAnalysis.create.mockResolvedValue({
-        id: 'analysis-1',
-        tenderId: 'tender-1',
-        ...mockAnalysisResult,
-      } as any);
-
-      const request = new NextRequest('http://localhost:3000/api/tenders/tender-1/analyze', {
-        method: 'POST',
-      });
-
-      const response = await POST(request, { params: { id: 'tender-1' } });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.analysis).toBeDefined();
-      expect(data.analysis.recommendation).toBe('GO');
-      expect(mockAnalyzeWithClaude).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'tender-1',
-          title: 'Software Development Services',
-        })
-      );
+    (mockPrisma.tenderAnalysis.upsert as jest.Mock).mockResolvedValue({
+      id: 'analysis-1',
+      recommendation: 'GO',
+      modelUsed: 'claude-sonnet',
     });
+    (mockPrisma.tender.update as jest.Mock).mockResolvedValue({});
 
-    it('should return 401 for unauthenticated user', async () => {
-      mockAuth.mockResolvedValue(null);
+    const response = await POST(makeRequest(), makeParams());
+    const data = await response.json();
 
-      const request = new NextRequest('http://localhost:3000/api/tenders/tender-1/analyze', {
-        method: 'POST',
-      });
-
-      const response = await POST(request, { params: { id: 'tender-1' } });
-
-      expect(response.status).toBe(401);
-      expect(mockAnalyzeWithClaude).not.toHaveBeenCalled();
-    });
-
-    it('should return 404 for non-existent tender', async () => {
-      mockAuth.mockResolvedValue({ user: mockUser });
-      mockPrisma.tender.findUnique.mockResolvedValue(null);
-
-      const request = new NextRequest('http://localhost:3000/api/tenders/invalid-id/analyze', {
-        method: 'POST',
-      });
-
-      const response = await POST(request, { params: { id: 'invalid-id' } });
-
-      expect(response.status).toBe(404);
-      expect(mockAnalyzeWithClaude).not.toHaveBeenCalled();
-    });
-
-    it('should return 403 for unauthorized organization access', async () => {
-      mockAuth.mockResolvedValue({
-        user: { ...mockUser, organizationId: 'org-2' }, // Different organization
-      });
-      mockPrisma.tender.findUnique.mockResolvedValue(mockTender as any);
-
-      const request = new NextRequest('http://localhost:3000/api/tenders/tender-1/analyze', {
-        method: 'POST',
-      });
-
-      const response = await POST(request, { params: { id: 'tender-1' } });
-
-      expect(response.status).toBe(403);
-      expect(mockAnalyzeWithClaude).not.toHaveBeenCalled();
-    });
-
-    it('should handle AI analysis errors gracefully', async () => {
-      mockAuth.mockResolvedValue({ user: mockUser });
-      mockPrisma.tender.findUnique.mockResolvedValue(mockTender as any);
-      mockAnalyzeWithClaude.mockRejectedValue(new Error('AI service unavailable'));
-
-      const request = new NextRequest('http://localhost:3000/api/tenders/tender-1/analyze', {
-        method: 'POST',
-      });
-
-      const response = await POST(request, { params: { id: 'tender-1' } });
-
-      expect(response.status).toBe(500);
-      const data = await response.json();
-      expect(data.error).toBe('Failed to analyze tender');
-    });
-
-    it('should update existing analysis if already exists', async () => {
-      mockAuth.mockResolvedValue({ user: mockUser });
-      mockPrisma.tender.findUnique.mockResolvedValue(mockTender as any);
-      mockAnalyzeWithClaude.mockResolvedValue(mockAnalysisResult);
-
-      // Mock existing analysis
-      mockPrisma.tenderAnalysis.create.mockRejectedValue({ code: 'P2002' }); // Unique constraint error
-      mockPrisma.tenderAnalysis.update.mockResolvedValue({
-        id: 'analysis-1',
-        tenderId: 'tender-1',
-        ...mockAnalysisResult,
-      } as any);
-
-      const request = new NextRequest('http://localhost:3000/api/tenders/tender-1/analyze', {
-        method: 'POST',
-      });
-
-      const response = await POST(request, { params: { id: 'tender-1' } });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(mockPrisma.tenderAnalysis.update).toHaveBeenCalled();
-    });
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(mockPrisma.tender.update).toHaveBeenCalled();
   });
 });

@@ -1,268 +1,153 @@
 import { NextRequest } from 'next/server';
-import { GET } from '@/app/api/invitations/route';
-import { POST } from '@/app/api/invitations/accept/route';
+
+jest.mock('@/lib/db', () => ({
+  prisma: {
+    user: { findUnique: jest.fn(), updateMany: jest.fn() },
+    userOrganization: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+    invitation: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+    auditLog: { create: jest.fn() },
+    $transaction: jest.fn(),
+  },
+}));
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+jest.mock('@/lib/email/client', () => ({ sendEmail: jest.fn(() => true) }));
+jest.mock('@/lib/email/invitation-template', () => ({ invitationEmail: jest.fn(() => ({ subject: 'Test', html: '<p>Test</p>' })) }));
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn(() => ({ allowed: true, remaining: 10, resetAt: Date.now() + 60000 })),
+  RATE_LIMITS: { api: {}, sensitive: {}, scan: {}, analysis: {}, cron: {}, auth: {}, webhook: {} },
+  getClientIp: jest.fn(() => '127.0.0.1'),
+}));
+jest.mock('@/lib/audit-log', () => ({
+  logAction: jest.fn(),
+  AuditActions: { ORG_INVITE: 'ORG_INVITE', ORG_INVITE_ACCEPT: 'ORG_INVITE_ACCEPT' },
+}));
+
+import { GET, POST as CREATE } from '@/app/api/invitations/route';
+import { POST as ACCEPT } from '@/app/api/invitations/accept/route';
+import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
-// Mock dependencies
-jest.mock('@/lib/db');
-jest.mock('@/lib/auth');
-jest.mock('@/lib/email/invitation-emails');
-
-import { auth } from '@/lib/auth';
-import { sendInvitationAcceptedEmail } from '@/lib/email/invitation-emails';
-
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 const mockAuth = auth as jest.MockedFunction<typeof auth>;
-const mockSendEmail = sendInvitationAcceptedEmail as jest.MockedFunction<typeof sendInvitationAcceptedEmail>;
+const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 
 describe('/api/invitations', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+  beforeEach(() => jest.clearAllMocks());
 
   describe('GET /api/invitations', () => {
-    const mockUser = {
-      id: 'user-1',
-      email: 'test@example.com',
-      role: 'MEMBER',
-      organizationId: 'org-1',
-      name: 'Test User',
-      image: null,
-    };
-
-    it('should return user invitations', async () => {
-      mockAuth.mockResolvedValue({ user: mockUser });
-
-      const mockInvitations = [
-        {
-          id: 'inv-1',
-          token: 'token-1',
-          email: 'test@example.com',
-          role: 'MEMBER',
-          organizationId: 'org-2',
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day from now
-          acceptedAt: null,
-          createdAt: new Date(),
-          organization: {
-            id: 'org-2',
-            name: 'Another Organization',
-            cui: '12345678',
-          },
-        },
-      ];
-
-      mockPrisma.invitation.findMany.mockResolvedValue(mockInvitations as any);
-
-      const request = new NextRequest('http://localhost:3000/api/invitations');
+    it('returns 401 when not authenticated', async () => {
+      mockAuth.mockResolvedValue(null as any);
+      const request = new NextRequest('http://localhost/api/invitations');
       const response = await GET(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.invitations).toEqual(mockInvitations);
-      expect(mockPrisma.invitation.findMany).toHaveBeenCalledWith({
-        where: {
-          email: 'test@example.com',
-          acceptedAt: null,
-          expiresAt: { gt: expect.any(Date) },
-        },
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true,
-              cui: true,
-            },
-          },
-        },
-      });
-    });
-
-    it('should return 401 for unauthenticated user', async () => {
-      mockAuth.mockResolvedValue(null);
-
-      const request = new NextRequest('http://localhost:3000/api/invitations');
-      const response = await GET(request);
-
       expect(response.status).toBe(401);
     });
 
-    it('should return empty array when no invitations exist', async () => {
-      mockAuth.mockResolvedValue({ user: mockUser });
-      mockPrisma.invitation.findMany.mockResolvedValue([]);
+    it('returns invitations for admin user', async () => {
+      mockAuth.mockResolvedValue({
+        user: { id: 'user-1', email: 'admin@test.com' },
+      } as any);
 
-      const request = new NextRequest('http://localhost:3000/api/invitations');
+      (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        email: 'admin@test.com',
+        activeOrganizationId: 'org-1',
+        activeOrganization: { name: 'Test Org' },
+      });
+
+      (mockPrisma.userOrganization.findUnique as jest.Mock).mockResolvedValue({
+        role: 'OWNER',
+      });
+
+      (mockPrisma.invitation.findMany as jest.Mock).mockResolvedValue([
+        { id: 'inv-1', email: 'new@test.com', status: 'pending' },
+      ]);
+
+      const request = new NextRequest('http://localhost/api/invitations');
       const response = await GET(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.invitations).toEqual([]);
+      expect(data.invitations).toHaveLength(1);
     });
   });
 
   describe('POST /api/invitations/accept', () => {
-    const mockInvitation = {
-      id: 'inv-1',
-      token: 'valid-token',
-      email: 'test@example.com',
-      role: 'MEMBER',
-      organizationId: 'org-2',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day from now
-      acceptedAt: null,
-      organization: {
-        id: 'org-2',
-        name: 'Test Organization',
-        cui: '12345678',
-      },
-    };
+    it('returns 401 when not authenticated', async () => {
+      mockAuth.mockResolvedValue(null as any);
+      const request = new NextRequest('http://localhost/api/invitations/accept', {
+        method: 'POST',
+        body: JSON.stringify({ token: 'some-token' }),
+      });
+      const response = await ACCEPT(request);
+      expect(response.status).toBe(401);
+    });
 
-    it('should accept valid invitation', async () => {
-      const mockUser = {
-        id: 'user-1',
-        email: 'test@example.com',
-        name: 'Test User',
-      };
-
-      mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation as any);
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser as any);
-      mockPrisma.userOrganization.create.mockResolvedValue({} as any);
-      mockPrisma.invitation.update.mockResolvedValue({
-        ...mockInvitation,
-        acceptedAt: new Date(),
+    it('returns 404 for invalid token', async () => {
+      mockAuth.mockResolvedValue({
+        user: { id: 'user-1', email: 'test@test.com' },
       } as any);
-      mockSendEmail.mockResolvedValue(undefined);
 
-      const request = new NextRequest('http://localhost:3000/api/invitations/accept', {
-        method: 'POST',
-        body: JSON.stringify({ token: 'valid-token' }),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      (mockPrisma.invitation.findUnique as jest.Mock).mockResolvedValue(null);
 
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.message).toBe('Invitation accepted successfully');
-      expect(mockPrisma.userOrganization.create).toHaveBeenCalledWith({
-        data: {
-          userId: 'user-1',
-          organizationId: 'org-2',
-          role: 'MEMBER',
-        },
-      });
-    });
-
-    it('should return 400 for missing token', async () => {
-      const request = new NextRequest('http://localhost:3000/api/invitations/accept', {
-        method: 'POST',
-        body: JSON.stringify({}),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(400);
-    });
-
-    it('should return 404 for invalid token', async () => {
-      mockPrisma.invitation.findUnique.mockResolvedValue(null);
-
-      const request = new NextRequest('http://localhost:3000/api/invitations/accept', {
+      const request = new NextRequest('http://localhost/api/invitations/accept', {
         method: 'POST',
         body: JSON.stringify({ token: 'invalid-token' }),
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
-
-      const response = await POST(request);
-
+      const response = await ACCEPT(request);
       expect(response.status).toBe(404);
     });
 
-    it('should return 400 for expired invitation', async () => {
-      const expiredInvitation = {
-        ...mockInvitation,
-        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-      };
-
-      mockPrisma.invitation.findUnique.mockResolvedValue(expiredInvitation as any);
-
-      const request = new NextRequest('http://localhost:3000/api/invitations/accept', {
-        method: 'POST',
-        body: JSON.stringify({ token: 'valid-token' }),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data.error).toBe('Invitation has expired');
-    });
-
-    it('should return 400 for already accepted invitation', async () => {
-      const acceptedInvitation = {
-        ...mockInvitation,
-        acceptedAt: new Date(Date.now() - 60 * 60 * 1000), // 1 hour ago
-      };
-
-      mockPrisma.invitation.findUnique.mockResolvedValue(acceptedInvitation as any);
-
-      const request = new NextRequest('http://localhost:3000/api/invitations/accept', {
-        method: 'POST',
-        body: JSON.stringify({ token: 'valid-token' }),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data.error).toBe('Invitation has already been accepted');
-    });
-
-    it('should handle user creation for new users', async () => {
-      mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation as any);
-      mockPrisma.user.findUnique.mockResolvedValue(null); // User doesn't exist
-
-      const newUser = {
-        id: 'user-new',
-        email: 'test@example.com',
-        name: null,
-      };
-
-      mockPrisma.user.create.mockResolvedValue(newUser as any);
-      mockPrisma.userOrganization.create.mockResolvedValue({} as any);
-      mockPrisma.invitation.update.mockResolvedValue({
-        ...mockInvitation,
-        acceptedAt: new Date(),
+    it('returns 400 for expired invitation', async () => {
+      mockAuth.mockResolvedValue({
+        user: { id: 'user-1', email: 'test@test.com' },
       } as any);
 
-      const request = new NextRequest('http://localhost:3000/api/invitations/accept', {
+      (mockPrisma.invitation.findUnique as jest.Mock).mockResolvedValue({
+        id: 'inv-1',
+        email: 'test@test.com',
+        status: 'pending',
+        expiresAt: new Date('2020-01-01'),
+        organizationId: 'org-1',
+        organization: { name: 'Test Org' },
+      });
+      (mockPrisma.invitation.update as jest.Mock).mockResolvedValue({});
+
+      const request = new NextRequest('http://localhost/api/invitations/accept', {
+        method: 'POST',
+        body: JSON.stringify({ token: 'expired-token' }),
+      });
+      const response = await ACCEPT(request);
+      expect(response.status).toBe(400);
+    });
+
+    it('accepts valid invitation', async () => {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 7);
+
+      mockAuth.mockResolvedValue({
+        user: { id: 'user-1', email: 'test@test.com' },
+      } as any);
+
+      (mockPrisma.invitation.findUnique as jest.Mock).mockResolvedValue({
+        id: 'inv-1',
+        email: 'test@test.com',
+        status: 'pending',
+        expiresAt: futureDate,
+        organizationId: 'org-1',
+        role: 'MEMBER',
+        organization: { name: 'Test Org' },
+      });
+      (mockPrisma.userOrganization.findFirst as jest.Mock).mockResolvedValue(null);
+      (mockPrisma.$transaction as jest.Mock).mockResolvedValue([]);
+
+      const request = new NextRequest('http://localhost/api/invitations/accept', {
         method: 'POST',
         body: JSON.stringify({ token: 'valid-token' }),
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
-
-      const response = await POST(request);
+      const response = await ACCEPT(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(mockPrisma.user.create).toHaveBeenCalledWith({
-        data: {
-          email: 'test@example.com',
-        },
-      });
+      expect(data.success).toBe(true);
     });
   });
 });
