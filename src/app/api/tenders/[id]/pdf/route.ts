@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { logAction, AuditActions } from '@/lib/audit-log';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
 
 // Dynamic imports to avoid SSR issues with @react-pdf/renderer
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,12 @@ interface RouteContext {
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
+    const clientIp = getClientIp(request);
+    const limit = checkRateLimit(clientIp, RATE_LIMITS.analysis);
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Prea multe cereri. Încearcă din nou în curând.' }, { status: 429 });
+    }
+
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

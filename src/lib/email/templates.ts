@@ -2,6 +2,8 @@
  * Email templates for SEAP Assistant — Romanian language
  */
 
+import { escapeHtml } from '@/lib/utils';
+
 interface TenderInfo {
   title: string;
   seapId: string;
@@ -44,6 +46,11 @@ function baseLayout(content: string): string {
 export function deadlineAlertEmail(tender: TenderInfo): { subject: string; html: string; text: string } {
   const urgencyColor = tender.daysRemaining <= 1 ? '#dc2626' : tender.daysRemaining <= 3 ? '#ea580c' : '#d97706';
   const urgencyLabel = tender.daysRemaining <= 1 ? 'URGENT' : tender.daysRemaining <= 3 ? 'Aproape' : 'Atenție';
+  const safeTitle = escapeHtml(tender.title);
+  const safeSeapId = escapeHtml(tender.seapId);
+  const safeAuth = escapeHtml(tender.contractingAuth);
+  const safeValue = tender.estimatedValue ? escapeHtml(tender.estimatedValue) : undefined;
+  const safeDeadline = escapeHtml(tender.submissionDeadline);
 
   return {
     subject: `[${urgencyLabel}] Deadline în ${tender.daysRemaining} ${tender.daysRemaining === 1 ? 'zi' : 'zile'}: ${tender.title.substring(0, 60)}`,
@@ -51,12 +58,12 @@ export function deadlineAlertEmail(tender: TenderInfo): { subject: string; html:
       <div style="padding:12px 16px;background:${urgencyColor}10;border-left:4px solid ${urgencyColor};border-radius:4px;margin-bottom:24px;">
         <strong style="color:${urgencyColor};">Deadline în ${tender.daysRemaining} ${tender.daysRemaining === 1 ? 'zi' : 'zile'}!</strong>
       </div>
-      <h2 style="margin:0 0 8px;font-size:18px;">${tender.title}</h2>
-      <p style="margin:0 0 4px;color:#666;font-size:14px;">${tender.seapId}</p>
+      <h2 style="margin:0 0 8px;font-size:18px;">${safeTitle}</h2>
+      <p style="margin:0 0 4px;color:#666;font-size:14px;">${safeSeapId}</p>
       <table style="width:100%;margin:16px 0;font-size:14px;" cellpadding="4">
-        <tr><td style="color:#888;width:140px;">Autoritate:</td><td>${tender.contractingAuth}</td></tr>
-        ${tender.estimatedValue ? `<tr><td style="color:#888;">Valoare estimată:</td><td>${tender.estimatedValue}</td></tr>` : ''}
-        <tr><td style="color:#888;">Termen depunere:</td><td><strong style="color:${urgencyColor};">${tender.submissionDeadline}</strong></td></tr>
+        <tr><td style="color:#888;width:140px;">Autoritate:</td><td>${safeAuth}</td></tr>
+        ${safeValue ? `<tr><td style="color:#888;">Valoare estimată:</td><td>${safeValue}</td></tr>` : ''}
+        <tr><td style="color:#888;">Termen depunere:</td><td><strong style="color:${urgencyColor};">${safeDeadline}</strong></td></tr>
       </table>
       <div style="margin-top:24px;text-align:center;">
         <a href="${tender.appUrl}" style="display:inline-block;padding:12px 24px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;">Vezi Detalii</a>
@@ -68,18 +75,24 @@ export function deadlineAlertEmail(tender: TenderInfo): { subject: string; html:
 }
 
 export function newTenderEmail(tender: TenderInfo): { subject: string; html: string; text: string } {
+  const safeTitle = escapeHtml(tender.title);
+  const safeSeapId = escapeHtml(tender.seapId);
+  const safeAuth = escapeHtml(tender.contractingAuth);
+  const safeValue = tender.estimatedValue ? escapeHtml(tender.estimatedValue) : undefined;
+  const safeDeadline = escapeHtml(tender.submissionDeadline);
+
   return {
     subject: `Licitație nouă: ${tender.title.substring(0, 70)}`,
     html: baseLayout(`
       <div style="padding:12px 16px;background:#dbeafe;border-left:4px solid #3b82f6;border-radius:4px;margin-bottom:24px;">
         <strong style="color:#1d4ed8;">Licitație Nouă Găsită</strong>
       </div>
-      <h2 style="margin:0 0 8px;font-size:18px;">${tender.title}</h2>
-      <p style="margin:0 0 4px;color:#666;font-size:14px;">${tender.seapId}</p>
+      <h2 style="margin:0 0 8px;font-size:18px;">${safeTitle}</h2>
+      <p style="margin:0 0 4px;color:#666;font-size:14px;">${safeSeapId}</p>
       <table style="width:100%;margin:16px 0;font-size:14px;" cellpadding="4">
-        <tr><td style="color:#888;width:140px;">Autoritate:</td><td>${tender.contractingAuth}</td></tr>
-        ${tender.estimatedValue ? `<tr><td style="color:#888;">Valoare estimată:</td><td>${tender.estimatedValue}</td></tr>` : ''}
-        <tr><td style="color:#888;">Termen depunere:</td><td>${tender.submissionDeadline}</td></tr>
+        <tr><td style="color:#888;width:140px;">Autoritate:</td><td>${safeAuth}</td></tr>
+        ${safeValue ? `<tr><td style="color:#888;">Valoare estimată:</td><td>${safeValue}</td></tr>` : ''}
+        <tr><td style="color:#888;">Termen depunere:</td><td>${safeDeadline}</td></tr>
       </table>
       <div style="margin-top:24px;text-align:center;">
         <a href="${tender.appUrl}" style="display:inline-block;padding:12px 24px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;">Analizează</a>
@@ -95,16 +108,17 @@ export function dailyDigestEmail(
   urgentDeadlines: { title: string; daysRemaining: number }[],
   appUrl: string
 ): { subject: string; html: string; text: string } {
+  const safeUserName = escapeHtml(userName);
   const urgentHtml = urgentDeadlines.length > 0
     ? urgentDeadlines.map((t) =>
-        `<li style="margin-bottom:8px;"><strong>${t.title.substring(0, 60)}</strong> — ${t.daysRemaining} ${t.daysRemaining === 1 ? 'zi' : 'zile'} rămase</li>`
+        `<li style="margin-bottom:8px;"><strong>${escapeHtml(t.title.substring(0, 60))}</strong> — ${t.daysRemaining} ${t.daysRemaining === 1 ? 'zi' : 'zile'} rămase</li>`
       ).join('')
     : '<li style="color:#888;">Niciun deadline urgent</li>';
 
   return {
     subject: `Rezumat zilnic: ${newTenders} licitații noi, ${urgentDeadlines.length} deadline-uri`,
     html: baseLayout(`
-      <h2 style="margin:0 0 16px;">Bună, ${userName}!</h2>
+      <h2 style="margin:0 0 16px;">Bună, ${safeUserName}!</h2>
       <p style="margin:0 0 24px;color:#666;">Iată rezumatul activității tale pe SEAP:</p>
       <div style="display:flex;gap:16px;margin-bottom:24px;">
         <div style="flex:1;padding:16px;background:#f0fdf4;border-radius:8px;text-align:center;">
@@ -130,15 +144,16 @@ export function opportunityReportEmail(
   opportunities: OpportunityReportItem[],
   appUrl: string
 ): { subject: string; html: string; text: string } {
+  const safeOrgName = escapeHtml(organizationName);
   const rows = opportunities
     .map((item) => `
       <tr>
         <td style="padding:10px;border-bottom:1px solid #eee;">
-          <div style="font-weight:600;margin-bottom:4px;">${item.title}</div>
-          <div style="font-size:12px;color:#666;">${item.seapId} • ${item.contractingAuth}</div>
+          <div style="font-weight:600;margin-bottom:4px;">${escapeHtml(item.title)}</div>
+          <div style="font-size:12px;color:#666;">${escapeHtml(item.seapId)} • ${escapeHtml(item.contractingAuth)}</div>
         </td>
         <td style="padding:10px;border-bottom:1px solid #eee;font-size:13px;">
-          ${item.estimatedValue || '-'}
+          ${item.estimatedValue ? escapeHtml(item.estimatedValue) : '-'}
         </td>
         <td style="padding:10px;border-bottom:1px solid #eee;font-size:13px;">
           ${item.submissionDeadline}
@@ -156,7 +171,7 @@ export function opportunityReportEmail(
       <div style="padding:12px 16px;background:#ecfdf5;border-left:4px solid #16a34a;border-radius:4px;margin-bottom:24px;">
         <strong style="color:#166534;">Au fost identificate ${opportunities.length} oportunități noi.</strong>
       </div>
-      <h2 style="margin:0 0 8px;font-size:18px;">${organizationName}</h2>
+      <h2 style="margin:0 0 8px;font-size:18px;">${safeOrgName}</h2>
       <p style="margin:0 0 16px;color:#666;">Raportul conține licitațiile noi potrivite profilului de monitorizare.</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">
         <thead>

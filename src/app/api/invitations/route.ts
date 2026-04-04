@@ -4,12 +4,23 @@ import { prisma } from '@/lib/db';
 import { sendEmail } from '@/lib/email/client';
 import { invitationEmail } from '@/lib/email/invitation-template';
 import { logAction, AuditActions } from '@/lib/audit-log';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
+import { randomBytes } from 'crypto';
 
 const APP_URL = process.env.NEXTAUTH_URL || 'https://seap-assistant.vercel.app';
 
 // GET /api/invitations - List invitations for current user's active organization
 export async function GET(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(ip, RATE_LIMITS.api);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -53,6 +64,16 @@ export async function GET(req: NextRequest) {
 // POST /api/invitations - Create and send invitation
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit invitation creation
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(ip, RATE_LIMITS.sensitive);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -84,7 +105,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { email, role = 'MEMBER' } = body;
 
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
+    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
     }
 
@@ -132,6 +153,7 @@ export async function POST(req: NextRequest) {
         organizationId: user.activeOrganizationId,
         invitedById: user.id,
         role: ['OWNER', 'ADMIN', 'MEMBER'].includes(role) ? role : 'MEMBER',
+        token: randomBytes(32).toString('hex'),
         expiresAt,
       },
     });
@@ -175,6 +197,15 @@ export async function POST(req: NextRequest) {
 // DELETE /api/invitations?id=xxx - Cancel invitation
 export async function DELETE(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(ip, RATE_LIMITS.sensitive);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
 
 const updateProfileSchema = z.object({
   name: z.string().min(2).optional(),
@@ -9,6 +10,12 @@ const updateProfileSchema = z.object({
 
 export async function PATCH(request: NextRequest) {
   try {
+    const clientIp = getClientIp(request);
+    const limit = checkRateLimit(clientIp, RATE_LIMITS.api);
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Prea multe cereri' }, { status: 429 });
+    }
+
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

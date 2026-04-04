@@ -3,17 +3,34 @@ import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 import { logAction, AuditActions } from '@/lib/audit-log';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
 
 const registerSchema = z.object({
-  name: z.string().min(2, 'Numele trebuie să aibă minim 2 caractere'),
-  email: z.string().email('Email invalid'),
-  password: z.string().min(6, 'Parola trebuie să aibă minim 6 caractere'),
-  organizationName: z.string().optional(),
-  cui: z.string().optional(),
+  name: z.string().min(2, 'Numele trebuie să aibă minim 2 caractere').max(200, 'Numele e prea lung'),
+  email: z.string().email('Email invalid').max(320, 'Email prea lung'),
+  password: z
+    .string()
+    .min(8, 'Parola trebuie să aibă minim 8 caractere')
+    .max(128, 'Parola e prea lungă')
+    .regex(/[A-Z]/, 'Parola trebuie să conțină cel puțin o literă mare')
+    .regex(/[a-z]/, 'Parola trebuie să conțină cel puțin o literă mică')
+    .regex(/[0-9]/, 'Parola trebuie să conțină cel puțin o cifră'),
+  organizationName: z.string().max(300).optional(),
+  cui: z.string().max(20).optional(),
 });
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit registration attempts
+    const ip = getClientIp(request);
+    const limit = checkRateLimit(ip, RATE_LIMITS.auth);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Prea multe încercări. Reîncercați mai târziu.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { name, email, password, organizationName, cui } = registerSchema.parse(body);
 
@@ -23,8 +40,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingUser) {
+      // Generic message to prevent email enumeration
       return NextResponse.json(
-        { error: 'Un utilizator cu acest email există deja' },
+        { error: 'Înregistrarea nu a putut fi finalizată. Verificați datele și încercați din nou.' },
         { status: 400 }
       );
     }
@@ -32,49 +50,58 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await hash(password, 12);
 
-    // Create user first
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
-    });
-
-    // Create or link organization if CUI provided
-    if (cui && organizationName) {
-      // Check if organization with this CUI exists
-      let organization = await prisma.organization.findUnique({
-        where: { cui },
-      });
-
-      if (!organization) {
-        organization = await prisma.organization.create({
-          data: {
-            name: organizationName,
-            cui,
-          },
-        });
-      }
-
-      // Create UserOrganization link with OWNER role for new org, MEMBER for existing
-      const isNewOrg = !organization.createdAt ||
-        (new Date().getTime() - organization.createdAt.getTime()) < 5000;
-
-      await prisma.userOrganization.create({
+    // Wrap all DB operations in a transaction to prevent partial state
+    const user = await prisma.$transaction(async (tx) => {
+      // Create user
+      const newUser = await tx.user.create({
         data: {
-          userId: user.id,
-          organizationId: organization.id,
-          role: isNewOrg ? 'OWNER' : 'MEMBER',
+          name,
+          email,
+          password: hashedPassword,
         },
       });
 
-      // Set as active organization
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { activeOrganizationId: organization.id },
-      });
-    }
+      // Create or link organization if CUI provided
+      if (cui && organizationName) {
+        const existingOrg = await tx.organization.findUnique({
+          where: { cui },
+        });
+
+        if (existingOrg) {
+          // Organization already exists — user must be invited to join.
+          // Auto-joining by CUI is a security risk (anyone who knows the CUI can access org data).
+          // User is created without org; they must accept an invitation later.
+          console.warn(
+            `[Register] User ${newUser.email} attempted to join existing org ${existingOrg.id} by CUI. ` +
+            `Org join blocked — invitation required.`
+          );
+        } else {
+          // New organization — user becomes OWNER
+          const organization = await tx.organization.create({
+            data: {
+              name: organizationName,
+              cui,
+            },
+          });
+
+          await tx.userOrganization.create({
+            data: {
+              userId: newUser.id,
+              organizationId: organization.id,
+              role: 'OWNER',
+            },
+          });
+
+          // Set as active organization
+          await tx.user.update({
+            where: { id: newUser.id },
+            data: { activeOrganizationId: organization.id },
+          });
+        }
+      }
+
+      return newUser;
+    });
 
     await logAction({
       userId: user.id,

@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 
 // All allowed setting keys
 const SETTING_KEYS = [
@@ -67,7 +68,7 @@ async function ensureTable(): Promise<void> {
   if (tableCreated) return;
 
   try {
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw`
       CREATE TABLE IF NOT EXISTS seap_system_settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
@@ -75,7 +76,7 @@ async function ensureTable(): Promise<void> {
         updated_at TIMESTAMP DEFAULT NOW(),
         created_at TIMESTAMP DEFAULT NOW()
       )
-    `);
+    `;
     tableCreated = true;
   } catch {
     tableCreated = true;
@@ -88,9 +89,8 @@ async function ensureTable(): Promise<void> {
 export async function getSetting(key: SettingKey): Promise<string | null> {
   await ensureTable();
 
-  const rows = await prisma.$queryRawUnsafe<{ value: string }[]>(
-    `SELECT value FROM seap_system_settings WHERE key = $1`,
-    key
+  const rows = await prisma.$queryRaw<{ value: string }[]>(
+    Prisma.sql`SELECT value FROM seap_system_settings WHERE key = ${key}`
   );
 
   if (rows.length > 0) return rows[0].value;
@@ -105,9 +105,8 @@ export async function getSettings(keys?: SettingKey[]): Promise<Record<string, s
 
   const targetKeys = keys || [...SETTING_KEYS];
 
-  const rows = await prisma.$queryRawUnsafe<{ key: string; value: string }[]>(
-    `SELECT key, value FROM seap_system_settings WHERE key = ANY($1::text[])`,
-    targetKeys
+  const rows = await prisma.$queryRaw<{ key: string; value: string }[]>(
+    Prisma.sql`SELECT key, value FROM seap_system_settings WHERE key = ANY(${targetKeys}::text[])`
   );
 
   const result: Record<string, string> = {};
@@ -142,14 +141,12 @@ export async function setSetting(
 
   await ensureTable();
 
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO seap_system_settings (key, value, updated_by, updated_at)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = NOW()`,
-    key,
-    value,
-    updatedBy || null
-  );
+  const byUser = updatedBy || null;
+  await prisma.$executeRaw`
+    INSERT INTO seap_system_settings (key, value, updated_by, updated_at)
+    VALUES (${key}, ${value}, ${byUser}, NOW())
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+  `;
 }
 
 /**
@@ -161,17 +158,15 @@ export async function setSettings(
 ): Promise<void> {
   await ensureTable();
 
+  const byUser = updatedBy || null;
   for (const [key, value] of Object.entries(settings)) {
     if (!SETTING_KEYS.includes(key as SettingKey)) continue;
 
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO seap_system_settings (key, value, updated_by, updated_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = NOW()`,
-      key,
-      value,
-      updatedBy || null
-    );
+    await prisma.$executeRaw`
+      INSERT INTO seap_system_settings (key, value, updated_by, updated_at)
+      VALUES (${key}, ${value}, ${byUser}, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+    `;
   }
 }
 

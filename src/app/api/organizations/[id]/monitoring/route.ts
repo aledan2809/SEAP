@@ -3,12 +3,13 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 import { Decimal } from '@prisma/client/runtime/library';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
 
 const updateMonitoringSchema = z.object({
-  cpvCodes: z.array(z.string()).optional(),
-  keywords: z.array(z.string()).optional(),
-  minValue: z.number().nullable().optional(),
-  maxValue: z.number().nullable().optional(),
+  cpvCodes: z.array(z.string().max(20).regex(/^\d{8}-\d$/, 'Format CPV invalid')).max(50, 'Maximum 50 CPV codes').optional(),
+  keywords: z.array(z.string().min(1).max(100)).max(100, 'Maximum 100 keywords').optional(),
+  minValue: z.number().min(0).nullable().optional(),
+  maxValue: z.number().min(0).nullable().optional(),
 });
 
 // PATCH - Update monitoring settings
@@ -17,6 +18,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const clientIp = getClientIp(request);
+    const limit = checkRateLimit(clientIp, RATE_LIMITS.sensitive);
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Prea multe cereri' }, { status: 429 });
+    }
+
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -88,12 +95,32 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const clientIp = getClientIp(request);
+    const limit = checkRateLimit(clientIp, RATE_LIMITS.api);
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Prea multe cereri' }, { status: 429 });
+    }
+
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
+
+    // Verify user has access to this organization
+    const userOrg = await prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: {
+          userId: session.user.id,
+          organizationId: id,
+        },
+      },
+    });
+
+    if (!userOrg) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const organization = await prisma.organization.findUnique({
       where: { id },

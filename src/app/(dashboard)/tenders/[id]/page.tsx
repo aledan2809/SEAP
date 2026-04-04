@@ -98,7 +98,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Link href="/tenders">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" aria-label="Înapoi la licitații">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>

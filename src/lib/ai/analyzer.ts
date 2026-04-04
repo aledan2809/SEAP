@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { aiRouter } from '../ai-router';
 import { execSync } from 'child_process';
 
 // Types based on Prisma schema
@@ -255,30 +255,22 @@ export async function analyzeWithClaude(tender: TenderForAnalysis): Promise<Anal
   } catch (cliError) {
     console.log('Claude CLI not available, trying API...', (cliError as Error).message);
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      console.log('No API key, falling back to rule-based analysis');
-      return ruleBasedAnalysis(tender);
-    }
-
     try {
-      const client = new Anthropic({ apiKey });
-      modelUsed = 'claude-sonnet-4-20250514';
-
-      const message = await client.messages.create({
-        model: modelUsed,
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: prompt }],
+      const aiResponse = await aiRouter.chat({
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: prompt },
+        ],
+        provider: 'auto',
+        maxTokens: 4096,
+        taskHint: 'analysis',
+        languageHint: 'ro',
       });
 
-      const textContent = message.content.find((block) => block.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
-        throw new Error('No text response from Claude API');
-      }
-      responseText = textContent.text.trim();
+      responseText = aiResponse.content.trim();
+      modelUsed = aiResponse.model || aiResponse.provider;
     } catch (apiError) {
-      console.log('API failed, falling back to rule-based analysis:', (apiError as Error).message);
+      console.log('AIRouter failed, falling back to rule-based analysis:', (apiError as Error).message);
       return ruleBasedAnalysis(tender);
     }
   }

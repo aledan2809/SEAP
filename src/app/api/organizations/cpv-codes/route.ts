@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
 
 /**
  * GET /api/organizations/cpv-codes
@@ -7,9 +8,16 @@ import { prisma } from '@/lib/db';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verifică API key (opțional)
+    const clientIp = getClientIp(request);
+    const limit = checkRateLimit(clientIp, RATE_LIMITS.api);
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+
+    // Require API key - reject if not configured or invalid
     const apiKey = request.headers.get('x-api-key');
-    if (process.env.N8N_API_KEY && apiKey !== process.env.N8N_API_KEY) {
+    const expectedKey = process.env.N8N_API_KEY;
+    if (!expectedKey || apiKey !== expectedKey) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

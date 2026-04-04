@@ -1,0 +1,210 @@
+[
+  {
+    "id": "ISSUE-001",
+    "title": "Rate limiting exists but only applied to 1 of 17 API routes",
+    "description": "Rate limiter exists in src/lib/rate-limit.ts with pre-configured limits for auth/api/sensitive/webhook namespaces. However, only src/app/api/webhooks/n8n/route.ts uses it. 16 other routes including auth/register, scan, tenders/analyze, organizations, and admin endpoints are unprotected against brute-force and abuse.",
+    "file_paths": [
+      "src/lib/rate-limit.ts",
+      "src/app/api/auth/register/route.ts",
+      "src/app/api/scan/route.ts",
+      "src/app/api/tenders/[id]/analyze/route.ts",
+      "src/app/api/organizations/route.ts",
+      "src/app/api/organizations/[id]/route.ts",
+      "src/app/api/admin/audit-logs/route.ts",
+      "src/app/api/admin/settings/route.ts",
+      "src/app/api/invitations/accept/route.ts",
+      "src/app/api/user/profile/route.ts",
+      "src/app/api/notifications/deadline-check/route.ts"
+    ],
+    "category": "security",
+    "priority": "P0",
+    "severity": "critical",
+    "status": "pending",
+    "source_section": "Section 4 - Securitate / Section 6 - Ce lipsește",
+    "audit_quote": "Lipsă: rate limiting explicit",
+    "verified_state": "rate-limit.ts EXISTS with checkRateLimit(), getClientIp(), and RATE_LIMITS config. Only used in webhooks/n8n/route.ts."
+  },
+  {
+    "id": "ISSUE-002",
+    "title": "No input validation on several API routes",
+    "description": "Audit flagged missing input validation at middleware level. While Zod is used in some forms, multiple API route handlers lack request body/query parameter validation, allowing malformed or malicious payloads.",
+    "file_paths": [
+      "src/app/api/admin/audit-logs/route.ts",
+      "src/app/api/admin/settings/route.ts",
+      "src/app/api/documents/[id]/download/route.ts",
+      "src/app/api/documents/file/[key]/route.ts",
+      "src/app/api/tenders/[id]/pdf/route.ts",
+      "src/app/api/scan/route.ts"
+    ],
+    "category": "security",
+    "priority": "P0",
+    "severity": "critical",
+    "status": "pending",
+    "source_section": "Section 4 - Securitate",
+    "audit_quote": "Lipsă: validare input la nivel de middleware"
+  },
+  {
+    "id": "ISSUE-003",
+    "title": "CSRF protection missing on custom API routes",
+    "description": "No Origin/Referer header validation on state-changing custom API routes (POST/PUT/DELETE). NextAuth v5 with JWT strategy mitigates session-based CSRF but custom routes using Bearer tokens or session cookies still need defense-in-depth protection.",
+    "file_paths": [
+      "src/middleware.ts",
+      "src/app/api/organizations/route.ts",
+      "src/app/api/organizations/[id]/route.ts",
+      "src/app/api/user/profile/route.ts",
+      "src/app/api/admin/settings/route.ts"
+    ],
+    "category": "security",
+    "priority": "P1",
+    "severity": "high",
+    "status": "pending",
+    "source_section": "Section 4 - Securitate",
+    "audit_quote": "Lipsă: CSRF protection explicită",
+    "verified_state": "middleware.ts EXISTS with security headers (X-Frame-Options, CSP, HSTS) but no Origin validation for CSRF"
+  },
+  {
+    "id": "ISSUE-004",
+    "title": "Google OAuth redirect URIs not configured in Google Cloud Console",
+    "description": "NextAuth Google provider code is complete. Redirect URIs https://seap.knowbest.ro/api/auth/callback/google and https://seap-assistant.vercel.app/api/auth/callback/google must be added in Google Cloud Console. Users cannot use Google login.",
+    "file_paths": [
+      "src/lib/auth/"
+    ],
+    "category": "configuration",
+    "priority": "P1",
+    "severity": "high",
+    "status": "pending",
+    "source_section": "Section 5 - Blocante / Section 6 - Top 5 Issues #1",
+    "audit_quote": "Google OAuth incomplet — redirect URI neconfigurate în Google Cloud Console",
+    "note": "EXTERNAL FIX — requires Google Cloud Console access, not a code change"
+  },
+  {
+    "id": "ISSUE-005",
+    "title": "Anthropic API credits exhausted on Vercel",
+    "description": "AI analysis on Vercel falls back to rule-based fallback due to exhausted Anthropic API credits. Claude CLI is not available in serverless environment. Analysis quality significantly degraded.",
+    "file_paths": [
+      "src/lib/ai/analyzer.ts"
+    ],
+    "category": "configuration",
+    "priority": "P1",
+    "severity": "high",
+    "status": "pending",
+    "source_section": "Section 5 - Blocante / Section 6 - Top 5 Issues #2",
+    "audit_quote": "Anthropic API credits epuizate — analiza AI pe Vercel cade pe rule-based",
+    "note": "EXTERNAL FIX — requires Anthropic billing top-up, not a code change"
+  },
+  {
+    "id": "ISSUE-006",
+    "title": "OCR service unavailable on Vercel serverless",
+    "description": "OCR depends on local FastAPI service on port 8000 — works on VPS but completely unavailable on Vercel. Documents cannot be processed on serverless deployment. No graceful fallback or user messaging.",
+    "file_paths": [
+      "src/lib/ocr/client.ts"
+    ],
+    "category": "architecture",
+    "priority": "P2",
+    "severity": "medium",
+    "status": "pending",
+    "source_section": "Section 5 - Blocante / Section 6 - Top 5 Issues #4",
+    "audit_quote": "OCR funcționează doar pe VPS (serviciu local port 8000), nu pe Vercel",
+    "note": "Architecture limitation — needs serverless OCR alternative or graceful degradation"
+  },
+  {
+    "id": "ISSUE-007",
+    "title": "n8n.4pro.io DNS A record not configured",
+    "description": "n8n integration workflow JSON exists but the n8n instance on VPS1 has no DNS A record. External scanner integration is non-functional.",
+    "file_paths": [
+      "src/app/api/webhooks/n8n/route.ts",
+      "n8n-workflows/"
+    ],
+    "category": "configuration",
+    "priority": "P2",
+    "severity": "medium",
+    "status": "pending",
+    "source_section": "Section 5 - Blocante",
+    "audit_quote": "n8n.4pro.io DNS neconfigutat (lipsește A record)",
+    "note": "EXTERNAL FIX — requires DNS provider configuration"
+  },
+  {
+    "id": "ISSUE-008",
+    "title": "No monitoring, health check, or alerting for production",
+    "description": "No error tracking (Sentry), no health check endpoint, no uptime monitoring, no alerting on API errors or cron failures. Production errors go unnoticed. PM2 provides only basic process monitoring on VPS.",
+    "file_paths": [],
+    "category": "infrastructure",
+    "priority": "P2",
+    "severity": "medium",
+    "status": "pending",
+    "source_section": "Section 6 - Ce lipsește",
+    "audit_quote": "Monitoring & alerting (erori de producție, down-time)"
+  },
+  {
+    "id": "ISSUE-009",
+    "title": "No API documentation (Swagger/OpenAPI)",
+    "description": "17 API endpoints exist without formal documentation. No swagger.json, openapi.yml, or JSDoc annotations. Blocks third-party integrations and developer onboarding.",
+    "file_paths": [
+      "src/app/api/"
+    ],
+    "category": "documentation",
+    "priority": "P3",
+    "severity": "low",
+    "status": "pending",
+    "source_section": "Section 6 - Ce lipsește",
+    "audit_quote": "Documentație API (nu există Swagger/OpenAPI)"
+  },
+  {
+    "id": "ISSUE-010",
+    "title": "README.md is generic create-next-app template",
+    "description": "README.md has not been customized. Actual project description only in knowledge/project-overview.md. New developers have no entry point.",
+    "file_paths": [
+      "README.md"
+    ],
+    "category": "documentation",
+    "priority": "P3",
+    "severity": "low",
+    "status": "pending",
+    "source_section": "Section 2 - README / Descriere proiect",
+    "audit_quote": "README-ul proiectului este generic (template create-next-app)"
+  },
+  {
+    "id": "ISSUE-011",
+    "title": "knowledge/project-overview.md outdated (last: 2026-02-07)",
+    "description": "Knowledge base last updated 2026-02-07. Does not reflect March 2026 work: Cloudflare R2 storage, dual deployment (VPS2 + Vercel), cron jobs, Claude AI 3-tier fallback, production status.",
+    "file_paths": [
+      "knowledge/project-overview.md"
+    ],
+    "category": "documentation",
+    "priority": "P3",
+    "severity": "low",
+    "status": "pending",
+    "source_section": "Section 3 - Strategie & Roadmap",
+    "audit_quote": "Ultima activitate declarată în knowledge: 2026-02-07"
+  },
+  {
+    "id": "ISSUE-012",
+    "title": "Zero test coverage (audit date: 2026-03-21)",
+    "description": "Audit reported zero automated tests. 7 test files were added after audit date. Current status needs verification that tests pass and provide adequate coverage of critical paths.",
+    "file_paths": [
+      "src/__tests__/"
+    ],
+    "category": "quality",
+    "priority": "P3",
+    "severity": "low",
+    "status": "resolved_post_audit",
+    "source_section": "Section 4 - Calitate cod / Section 6 - Top 5 Issues #3",
+    "audit_quote": "Teste automatizate (unit, integration, E2E — zero coverage)",
+    "resolution": "7 test files added after audit date covering organizations, scan, tenders-analyze, invitations, deadline-check, pdf-export, user-profile."
+  },
+  {
+    "id": "ISSUE-013",
+    "title": "STRATEGY.md was template placeholder (audit date: 2026-03-21)",
+    "description": "Audit reported STRATEGY.md as empty template. It has since been filled out with full vision, scope, goals, constraints, and success metrics. Updated 2026-03-22.",
+    "file_paths": [
+      "STRATEGY.md"
+    ],
+    "category": "documentation",
+    "priority": "P3",
+    "severity": "low",
+    "status": "resolved_post_audit",
+    "source_section": "Section 6 - Ce lipsește / Top 5 Issues #5",
+    "audit_quote": "STRATEGY.md + CHANGELOG.md neactualizate (template gol)",
+    "resolution": "STRATEGY.md fully populated on 2026-03-22. CHANGELOG.md has entries through 2026-03-19."
+  }
+]

@@ -1,5 +1,5 @@
 # Strategy — SEAP
-Last Updated: 2026-03-22
+Last Updated: 2026-03-28
 
 ## Vision
 Become the leading automated monitoring platform for Romanian government IT tenders, helping companies win more public contracts through intelligent AI-powered analysis and never miss relevant opportunities.
@@ -35,6 +35,11 @@ Become the leading automated monitoring platform for Romanian government IT tend
 - [ ] **Google OAuth** — Code complete, redirect URIs pending manual setup
 - [ ] **OCR Service** — Active on VPS, need Vercel serverless solution
 - [ ] **n8n Integration** — Workflow ready, DNS configuration pending
+
+### Completed (v1.1 Audit) ✅
+- [x] **Accessibility Audit Fixes** — ARIA labels, form associations, color-independent indicators
+- [x] **Security Hardening** — Webhook replay protection, DB-verified admin checks
+- [x] **UX Improvements** — Password hint, form error associations
 
 ### Next Milestone (v2.0) 🎯
 - [ ] **Enhanced Analytics** — Market trends, competitor analysis

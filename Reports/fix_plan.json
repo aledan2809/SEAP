@@ -1,0 +1,308 @@
+{
+  "project": "SEAP",
+  "audit_date": "2026-03-21",
+  "plan_date": "2026-03-28",
+  "plan_version": "2.0",
+  "total_issues": 13,
+  "resolved_since_audit": 2,
+  "remaining_issues": 11,
+  "code_fixable": 7,
+  "external_config": 4,
+  "priority_summary": {
+    "P0_critical": 2,
+    "P1_high": 3,
+    "P2_medium": 3,
+    "P3_low": 5
+  },
+  "fix_plan": [
+    {
+      "id": "ISSUE-001",
+      "priority": "P0",
+      "title": "Apply existing rate limiting to all API routes",
+      "category": "security",
+      "fix_type": "code",
+      "fix_action": "rate-limit.ts already has checkRateLimit(), getClientIp(), and RATE_LIMITS presets (auth: 10/min, api: 60/min, sensitive: 20/min, webhook: 100/min). Import and apply at the top of each route handler: check rate limit → return 429 if exceeded. Priority routes: auth/register (use 'auth' preset), scan (use 'sensitive' preset), tenders/analyze (use 'sensitive' preset), all organization CRUD (use 'api' preset).",
+      "files_to_modify": [
+        {
+          "path": "src/lib/rate-limit.ts",
+          "action": "EXISTS — no changes needed, already has all required utilities"
+        },
+        {
+          "path": "src/app/api/auth/register/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.auth (10 req/min)"
+        },
+        {
+          "path": "src/app/api/scan/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.sensitive (20 req/min)"
+        },
+        {
+          "path": "src/app/api/tenders/[id]/analyze/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.sensitive (20 req/min)"
+        },
+        {
+          "path": "src/app/api/tenders/[id]/status/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/tenders/[id]/pdf/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/organizations/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/organizations/[id]/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/organizations/[id]/invitations/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.sensitive (20 req/min)"
+        },
+        {
+          "path": "src/app/api/organizations/[id]/monitoring/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/invitations/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/invitations/accept/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.auth (10 req/min)"
+        },
+        {
+          "path": "src/app/api/user/profile/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/admin/audit-logs/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/admin/settings/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.sensitive (20 req/min)"
+        },
+        {
+          "path": "src/app/api/notifications/deadline-check/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/documents/[id]/download/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        },
+        {
+          "path": "src/app/api/documents/file/[key]/route.ts",
+          "action": "MODIFY — add checkRateLimit with RATE_LIMITS.api (60 req/min)"
+        }
+      ],
+      "expected_result": "All 17 API endpoints return 429 Too Many Requests when rate limit exceeded. Brute-force and abuse protection active.",
+      "test_command": "npm run build",
+      "effort": "medium",
+      "pattern": "import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limit'; const ip = getClientIp(request); const rl = checkRateLimit(ip, RATE_LIMITS.auth); if (!rl.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 });"
+    },
+    {
+      "id": "ISSUE-002",
+      "priority": "P0",
+      "title": "Add Zod input validation to unprotected API routes",
+      "category": "security",
+      "fix_type": "code",
+      "fix_action": "Add Zod schemas for request body validation on POST/PUT routes and query parameter validation on GET routes that currently lack it. Sanitize path parameters on file/document routes to prevent path traversal.",
+      "files_to_modify": [
+        {
+          "path": "src/app/api/admin/audit-logs/route.ts",
+          "action": "MODIFY — add Zod validation for query params (page, limit, userId, action)"
+        },
+        {
+          "path": "src/app/api/admin/settings/route.ts",
+          "action": "MODIFY — add Zod validation for PUT request body"
+        },
+        {
+          "path": "src/app/api/documents/[id]/download/route.ts",
+          "action": "MODIFY — validate document ID format (cuid/uuid), reject path traversal"
+        },
+        {
+          "path": "src/app/api/documents/file/[key]/route.ts",
+          "action": "MODIFY — validate file key format, block path traversal (../ sequences)"
+        },
+        {
+          "path": "src/app/api/tenders/[id]/pdf/route.ts",
+          "action": "MODIFY — validate tender ID format"
+        },
+        {
+          "path": "src/app/api/scan/route.ts",
+          "action": "MODIFY — validate CRON_SECRET and any body params"
+        }
+      ],
+      "expected_result": "All API routes validate inputs. Malformed requests return 400 with error details. Path traversal attacks blocked.",
+      "test_command": "npm run build",
+      "effort": "medium"
+    },
+    {
+      "id": "ISSUE-003",
+      "priority": "P1",
+      "title": "Add Origin header CSRF validation in middleware",
+      "category": "security",
+      "fix_type": "code",
+      "fix_action": "Extend existing src/middleware.ts to validate Origin header on POST/PUT/DELETE requests to /api/* routes. Allow requests from configured allowed origins (seap.knowbest.ro, seap-assistant.vercel.app, localhost). Reject cross-origin state-changing requests with 403.",
+      "files_to_modify": [
+        {
+          "path": "src/middleware.ts",
+          "action": "MODIFY — add Origin header validation for POST/PUT/DELETE on /api/* routes"
+        }
+      ],
+      "expected_result": "Cross-origin state-changing requests blocked with 403. Same-origin and whitelisted origins pass. Cron endpoints with CRON_SECRET exempted.",
+      "test_command": "npm run build",
+      "effort": "low"
+    },
+    {
+      "id": "ISSUE-004",
+      "priority": "P1",
+      "title": "Configure Google OAuth redirect URIs",
+      "category": "configuration",
+      "fix_type": "external",
+      "fix_action": "Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client → Add authorized redirect URIs: (1) https://seap.knowbest.ro/api/auth/callback/google (2) https://seap-assistant.vercel.app/api/auth/callback/google",
+      "files_to_modify": [],
+      "expected_result": "Google OAuth login functional on both deployments.",
+      "test_command": "Manual — click Google login on both URLs and verify callback",
+      "effort": "low",
+      "note": "No code changes. Google Cloud Console only."
+    },
+    {
+      "id": "ISSUE-005",
+      "priority": "P1",
+      "title": "Restore Anthropic API credits",
+      "category": "configuration",
+      "fix_type": "external",
+      "fix_action": "Top up Anthropic API credits via console.anthropic.com. Verify ANTHROPIC_API_KEY env var on Vercel. Test AI analysis endpoint.",
+      "files_to_modify": [],
+      "expected_result": "AI analysis uses Claude API instead of rule-based fallback. SWOT reports are higher quality.",
+      "test_command": "POST /api/tenders/[id]/analyze — verify response.analysisType !== 'rule-based'",
+      "effort": "low",
+      "note": "No code changes. Billing + env var verification only."
+    },
+    {
+      "id": "ISSUE-006",
+      "priority": "P2",
+      "title": "Add graceful OCR fallback for Vercel",
+      "category": "architecture",
+      "fix_type": "code",
+      "fix_action": "Modify OCR client to: (1) detect if OCR service is unreachable, (2) fall back to pdf-parse for text-based PDFs, (3) return clear user-facing error for image-based PDFs on Vercel. Add environment detection (VERCEL env var).",
+      "files_to_modify": [
+        {
+          "path": "src/lib/ocr/client.ts",
+          "action": "MODIFY — add health check, pdf-parse fallback for text PDFs, clear error messages for image PDFs when OCR unavailable"
+        }
+      ],
+      "expected_result": "Vercel: text PDFs processed via pdf-parse. Image PDFs show clear 'OCR unavailable' message. No silent failures.",
+      "test_command": "npm run build",
+      "effort": "medium"
+    },
+    {
+      "id": "ISSUE-007",
+      "priority": "P2",
+      "title": "Configure n8n DNS A record",
+      "category": "configuration",
+      "fix_type": "external",
+      "fix_action": "DNS provider → Add A record: n8n.4pro.io → VPS1 server IP address.",
+      "files_to_modify": [],
+      "expected_result": "n8n instance reachable at n8n.4pro.io. Webhook integration functional.",
+      "test_command": "curl -I https://n8n.4pro.io",
+      "effort": "low",
+      "note": "No code changes. DNS provider configuration only."
+    },
+    {
+      "id": "ISSUE-008",
+      "priority": "P2",
+      "title": "Add health check endpoint for monitoring",
+      "category": "infrastructure",
+      "fix_type": "code",
+      "fix_action": "Create GET /api/health endpoint that checks DB connectivity (Prisma.$queryRaw) and returns JSON with status, DB ping, uptime, and app version. Can be monitored by UptimeRobot or similar.",
+      "files_to_modify": [
+        {
+          "path": "src/app/api/health/route.ts",
+          "action": "CREATE — health check endpoint returning {status, db, uptime, version}"
+        }
+      ],
+      "expected_result": "GET /api/health returns 200 with JSON status. External monitors can poll this endpoint.",
+      "test_command": "curl http://localhost:3011/api/health",
+      "effort": "low"
+    },
+    {
+      "id": "ISSUE-009",
+      "priority": "P3",
+      "title": "Create API reference documentation",
+      "category": "documentation",
+      "fix_type": "code",
+      "fix_action": "Create knowledge/api-reference.md documenting all 17 endpoints: method, path, auth requirements, request/response schemas, status codes. Source from actual route files.",
+      "files_to_modify": [
+        {
+          "path": "knowledge/api-reference.md",
+          "action": "CREATE — comprehensive API reference for all 17 endpoints"
+        }
+      ],
+      "expected_result": "Complete API reference available for developer onboarding.",
+      "test_command": "N/A — documentation review",
+      "effort": "medium"
+    },
+    {
+      "id": "ISSUE-010",
+      "priority": "P3",
+      "title": "Replace generic README with project-specific content",
+      "category": "documentation",
+      "fix_type": "code",
+      "fix_action": "Rewrite README.md with SEAP Assistant description, setup instructions, tech stack, env vars, architecture overview. Source from knowledge/project-overview.md and DEVELOPMENT_STATUS.md.",
+      "files_to_modify": [
+        {
+          "path": "README.md",
+          "action": "MODIFY — replace create-next-app template with SEAP-specific README"
+        }
+      ],
+      "expected_result": "README accurately describes the project for new developers.",
+      "test_command": "N/A — documentation review",
+      "effort": "low"
+    },
+    {
+      "id": "ISSUE-011",
+      "priority": "P3",
+      "title": "Update knowledge base with March 2026 changes",
+      "category": "documentation",
+      "fix_type": "code",
+      "fix_action": "Update knowledge/project-overview.md to reflect: Cloudflare R2 storage, dual deployment (VPS2 + Vercel), cron jobs, Claude AI 3-tier fallback, Google OAuth config, production status with 319 tenders.",
+      "files_to_modify": [
+        {
+          "path": "knowledge/project-overview.md",
+          "action": "MODIFY — update architecture, deployment, and feature sections to current state"
+        }
+      ],
+      "expected_result": "Knowledge base reflects actual project state as of March 2026.",
+      "test_command": "N/A — documentation review",
+      "effort": "low"
+    }
+  ],
+  "resolved_issues": [
+    {
+      "id": "ISSUE-012",
+      "title": "Zero test coverage",
+      "resolution": "7 test files added after audit date covering critical API routes."
+    },
+    {
+      "id": "ISSUE-013",
+      "title": "STRATEGY.md and CHANGELOG.md outdated/empty",
+      "resolution": "STRATEGY.md fully populated 2026-03-22. CHANGELOG.md has entries through 2026-03-19."
+    }
+  ],
+  "execution_order": [
+    "ISSUE-001 (P0 — apply rate limiting to all routes)",
+    "ISSUE-002 (P0 — add input validation to unprotected routes)",
+    "ISSUE-003 (P1 — CSRF Origin validation in middleware)",
+    "ISSUE-004 (P1 — Google OAuth config — EXTERNAL)",
+    "ISSUE-005 (P1 — Anthropic credits — EXTERNAL)",
+    "ISSUE-006 (P2 — OCR graceful fallback)",
+    "ISSUE-008 (P2 — health check endpoint)",
+    "ISSUE-007 (P2 — n8n DNS — EXTERNAL)",
+    "ISSUE-009 (P3 — API documentation)",
+    "ISSUE-010 (P3 — README update)",
+    "ISSUE-011 (P3 — knowledge base update)"
+  ]
+}

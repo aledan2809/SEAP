@@ -47,6 +47,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               key={item.name}
               href={item.href}
               onClick={onNavigate}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors',
                 isActive
@@ -54,7 +55,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                   : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
               )}
             >
-              <Icon className="mr-3 h-5 w-5 shrink-0" />
+              <Icon className="mr-3 h-5 w-5 shrink-0" aria-hidden="true" />
               {item.name}
             </Link>
           );
@@ -79,7 +80,7 @@ export function Sidebar() {
     <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 z-30">
       <div className="flex flex-col flex-grow bg-card border-r">
         <div className="flex items-center h-16 px-6 border-b shrink-0">
-          <Building2 className="h-8 w-8 text-primary shrink-0" />
+          <Building2 className="h-8 w-8 text-primary shrink-0" aria-hidden="true" />
           <span className="ml-3 text-xl font-bold truncate">SEAP Assistant</span>
         </div>
         <SidebarNav />
@@ -116,7 +117,7 @@ export function MobileSidebar() {
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-0" showCloseButton={false}>
         <SheetHeader className="h-16 px-6 border-b flex flex-row items-center justify-start gap-3 shrink-0">
-          <Building2 className="h-8 w-8 text-primary shrink-0" />
+          <Building2 className="h-8 w-8 text-primary shrink-0" aria-hidden="true" />
           <SheetTitle className="text-xl font-bold">SEAP</SheetTitle>
         </SheetHeader>
         <div className="flex flex-col flex-1 overflow-y-auto">

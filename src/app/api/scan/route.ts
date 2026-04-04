@@ -7,6 +7,8 @@ import {
   sendOpportunityReports,
 } from '@/lib/email/notifications';
 import { logAction, AuditActions } from '@/lib/audit-log';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
+import { prisma } from '@/lib/db';
 
 /**
  * SEAP Scanner + Email Notifications
@@ -83,21 +85,33 @@ async function executeScan(scanType: 'full' | 'quick', runDailyNotifications: bo
 // Vercel Cron sends GET requests
 export async function GET(request: NextRequest) {
   try {
+    // Rate limit scan operations
+    const clientIp = getClientIp(request);
+    const limit = checkRateLimit(clientIp, RATE_LIMITS.scan);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Prea multe cereri de scanare. Încearcă din nou în curând.' },
+        { status: 429 }
+      );
+    }
+
     // Verify Vercel cron secret
     const cronSecret = request.headers.get('authorization');
     const isCron = cronSecret === `Bearer ${process.env.CRON_SECRET}`;
 
     if (!isCron) {
-      // Allow authenticated users too
+      // Allow authenticated admin users — verify role from DB
       const session = await auth();
-      if (!session?.user) {
-        return NextResponse.json({
-          status: 'ok',
-          endpoint: 'seap-scanner',
-          usage: 'POST { type: "full" | "quick" } or GET with CRON_SECRET',
-        });
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
-      if (!ADMIN_ROLES.has(session.user.role || '')) {
+      const membership = await prisma.userOrganization.findFirst({
+        where: {
+          userId: session.user.id,
+          role: { in: ['OWNER', 'ADMIN'] },
+        },
+      });
+      if (!membership) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
@@ -116,15 +130,31 @@ export async function GET(request: NextRequest) {
 // Manual trigger
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit scan operations
+    const clientIp = getClientIp(request);
+    const limit = checkRateLimit(clientIp, RATE_LIMITS.scan);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Prea multe cereri de scanare. Încearcă din nou în curând.' },
+        { status: 429 }
+      );
+    }
+
     const cronSecret = request.headers.get('authorization');
     const isCron = cronSecret === `Bearer ${process.env.CRON_SECRET}`;
 
     if (!isCron) {
       const session = await auth();
-      if (!session?.user) {
+      if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
-      if (!ADMIN_ROLES.has(session.user.role || '')) {
+      const membership = await prisma.userOrganization.findFirst({
+        where: {
+          userId: session.user.id,
+          role: { in: ['OWNER', 'ADMIN'] },
+        },
+      });
+      if (!membership) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }

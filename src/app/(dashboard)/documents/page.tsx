@@ -183,7 +183,7 @@ export default async function DocumentsPage() {
                       {doc.docType} • {formatFileSize(doc.fileSize || 0)}
                     </p>
                   </div>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" aria-label={`Descarcă ${doc.name}`}>
                     <Download className="h-4 w-4" />
                   </Button>
                 </div>
@@ -256,10 +256,10 @@ export default async function DocumentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" aria-label={`Vizualizează ${doc.filename}`}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" aria-label={`Descarcă ${doc.filename}`}>
                           <Download className="h-4 w-4" />
                         </Button>
                       </div>

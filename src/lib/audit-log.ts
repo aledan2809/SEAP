@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-import { NextRequest } from 'next/server';
+import { getClientIp } from '@/lib/rate-limit';
 
 interface LogOptions {
   userId?: string | null;
@@ -9,16 +9,7 @@ interface LogOptions {
   resource?: string;
   resourceId?: string;
   details?: Record<string, unknown>;
-  request?: NextRequest;
-}
-
-function getClientIp(request?: NextRequest): string | null {
-  if (!request) return null;
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    null
-  );
+  request?: Request;
 }
 
 export async function logAction(options: LogOptions): Promise<void> {
@@ -31,7 +22,7 @@ export async function logAction(options: LogOptions): Promise<void> {
         resource: options.resource || null,
         resourceId: options.resourceId || null,
         details: (options.details as Prisma.InputJsonValue) || undefined,
-        ip: getClientIp(options.request),
+        ip: options.request ? getClientIp(options.request) : null,
       },
     });
   } catch (error) {

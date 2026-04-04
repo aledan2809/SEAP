@@ -83,9 +83,10 @@ export function TenderFilters({ currentStatus, currentSearch }: TenderFiltersPro
     <div className="flex flex-col sm:flex-row gap-4">
       <form onSubmit={handleSearch} className="flex-1 flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <Input
             placeholder="Caută după titlu, autoritate sau ID SEAP..."
+            aria-label="Caută licitații"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             className="pl-10 pr-10"
@@ -94,6 +95,7 @@ export function TenderFilters({ currentStatus, currentSearch }: TenderFiltersPro
             <button
               type="button"
               onClick={clearSearch}
+              aria-label="Șterge căutarea"
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="h-4 w-4" />
@@ -109,7 +111,7 @@ export function TenderFilters({ currentStatus, currentSearch }: TenderFiltersPro
         value={currentStatus || 'all'}
         onValueChange={(value) => updateFilters({ status: value })}
       >
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-[180px]" aria-label="Filtrează după status">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>

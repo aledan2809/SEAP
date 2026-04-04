@@ -10,6 +10,7 @@ import {
 import { processDocumentOcr, isOcrSupported } from '@/lib/ocr/client';
 import { getFile } from '@/lib/storage';
 import { sendDeadlineAlertForTender, sendOpportunityReports } from '@/lib/email/notifications';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
 
 /**
  * Webhook endpoint pentru n8n
@@ -53,38 +54,6 @@ import { sendDeadlineAlertForTender, sendOpportunityReports } from '@/lib/email/
  * - Returns 429 Too Many Requests when exceeded
  */
 
-// Simple in-memory rate limiter
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 100;
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return true;
-  }
-
-  if (entry.count >= RATE_LIMIT_MAX) {
-    return false;
-  }
-
-  entry.count++;
-  return true;
-}
-
-// Cleanup old entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of rateLimitMap.entries()) {
-    if (now > entry.resetAt) {
-      rateLimitMap.delete(ip);
-    }
-  }
-}, 5 * 60 * 1000);
-
 const webhookSchema = z.object({
   event: z.enum([
     'tender_found',
@@ -95,86 +64,94 @@ const webhookSchema = z.object({
     'tender_updated',
   ]),
   data: z.record(z.string(), z.unknown()),
-  timestamp: z.string().optional(),
+  timestamp: z.string().min(1, 'Timestamp is required for replay attack prevention'),
 });
 
 const tenderDataSchema = z.object({
-  seapId: z.string(),
-  title: z.string(),
-  description: z.string().optional().nullable(),
-  contractingAuth: z.string(),
-  contractingAuthCui: z.string().optional().nullable(),
+  seapId: z.string().max(100),
+  title: z.string().max(1000),
+  description: z.string().max(10000).optional().nullable(),
+  contractingAuth: z.string().max(500),
+  contractingAuthCui: z.string().max(50).optional().nullable(),
   estimatedValue: z.number().optional().nullable(),
-  currency: z.string().optional().default('RON'),
-  cpvCode: z.string(),
-  cpvDescription: z.string().optional().nullable(),
-  procedureType: z.string().optional().default('unknown'),
-  contractType: z.string().optional().nullable(),
-  publicationDate: z.string().optional().nullable(),
-  submissionDeadline: z.string().optional().nullable(),
-  seapUrl: z.string(),
+  currency: z.string().max(10).optional().default('RON'),
+  cpvCode: z.string().max(50).regex(/^\d{8}-\d$/, 'Invalid CPV code format'),
+  cpvDescription: z.string().max(500).optional().nullable(),
+  procedureType: z.string().max(200).optional().default('unknown'),
+  contractType: z.string().max(200).optional().nullable(),
+  publicationDate: z.string().max(50).optional().nullable(),
+  submissionDeadline: z.string().max(50).optional().nullable(),
+  seapUrl: z.string().max(2000),
   documents: z
     .array(
       z.object({
-        url: z.string(),
-        filename: z.string().optional(),
+        url: z.string().max(2000),
+        filename: z.string().max(500).optional(),
       })
     )
+    .max(50)
     .optional(),
 });
 
 const documentsDataSchema = z.object({
-  tenderId: z.string(),
+  tenderId: z.string().max(100),
   documents: z.array(
     z.object({
-      url: z.string(),
-      filename: z.string().optional(),
+      url: z.string().max(2000),
+      filename: z.string().max(500).optional(),
     })
-  ),
+  ).max(50),
 });
 
 const analysisDataSchema = z.object({
-  tenderId: z.string(),
-  strengths: z.array(z.string()).optional(),
-  weaknesses: z.array(z.string()).optional(),
-  opportunities: z.array(z.string()).optional(),
-  threats: z.array(z.string()).optional(),
+  tenderId: z.string().max(100),
+  strengths: z.array(z.string().max(1000)).max(20).optional(),
+  weaknesses: z.array(z.string().max(1000)).max(20).optional(),
+  opportunities: z.array(z.string().max(1000)).max(20).optional(),
+  threats: z.array(z.string().max(1000)).max(20).optional(),
   recommendation: z.enum(['GO', 'CAUTION', 'NO_GO']).optional(),
-  aiSummary: z.string().optional(),
+  aiSummary: z.string().max(10000).optional(),
   confidence: z.number().optional(),
 });
 
 const clarificationDataSchema = z.object({
-  tenderId: z.string(),
-  seapId: z.string().optional(),
-  title: z.string(),
-  content: z.string().optional(),
-  documentUrl: z.string().optional(),
-  publishedAt: z.string().optional(),
+  tenderId: z.string().max(100),
+  seapId: z.string().max(100).optional(),
+  title: z.string().max(1000),
+  content: z.string().max(10000).optional(),
+  documentUrl: z.string().max(2000).optional(),
+  publishedAt: z.string().max(50).optional(),
 });
 
 const deadlineDataSchema = z.object({
-  tenderId: z.string(),
-  seapId: z.string().optional(),
-  deadline: z.string(),
+  tenderId: z.string().max(100),
+  seapId: z.string().max(100).optional(),
+  deadline: z.string().max(50),
   daysRemaining: z.number(),
 });
 
+// Only allow known tender fields to be updated via webhook
+const ALLOWED_CHANGE_KEYS = new Set([
+  'title', 'description', 'submissionDeadline', 'estimatedValue',
+  'contractType', 'procedureType', 'cpvCode', 'status',
+]);
+
 const tenderUpdateDataSchema = z.object({
-  tenderId: z.string().optional(),
-  seapId: z.string(),
-  changes: z.record(z.string(), z.unknown()),
-  updatedAt: z.string().optional(),
+  tenderId: z.string().max(100).optional(),
+  seapId: z.string().max(100),
+  changes: z.record(z.string().max(100), z.unknown()).refine(
+    (obj) => Object.keys(obj).every((k) => ALLOWED_CHANGE_KEYS.has(k)),
+    { message: 'Changes contain disallowed keys' }
+  ),
+  updatedAt: z.string().max(50).optional(),
 });
 
 export async function POST(request: NextRequest) {
   try {
-    // Get client IP for rate limiting
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const clientIp = forwardedFor?.split(',')[0]?.trim() || 'unknown';
-
-    // Check rate limit
-    if (!checkRateLimit(clientIp)) {
+    // Rate limiting
+    const clientIp = getClientIp(request);
+    const limit = checkRateLimit(clientIp, RATE_LIMITS.webhook);
+    if (!limit.allowed) {
       console.warn(`[N8N Webhook] Rate limit exceeded for IP: ${clientIp}`);
       return NextResponse.json(
         { error: 'Too many requests. Max 100 per minute.' },
@@ -188,27 +165,53 @@ export async function POST(request: NextRequest) {
     const providedWebhookSecret = request.headers.get('x-webhook-secret');
     const providedApiKey = request.headers.get('x-api-key');
 
-    // If WEBHOOK_SECRET is set, validate it
+    // Require at least one auth method to be configured
+    if (!webhookSecret && !n8nApiKey) {
+      console.error('[N8N Webhook] No authentication configured. Set WEBHOOK_SECRET or N8N_API_KEY.');
+      return NextResponse.json({ error: 'Webhook authentication not configured' }, { status: 503 });
+    }
+
+    // Validate WEBHOOK_SECRET if set
     if (webhookSecret) {
       if (providedWebhookSecret !== webhookSecret) {
         console.warn(`[N8N Webhook] Invalid webhook secret from IP: ${clientIp}`);
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
     }
-    // Otherwise, if N8N_API_KEY is set, validate it
+    // Otherwise validate N8N_API_KEY
     else if (n8nApiKey) {
       if (providedApiKey !== n8nApiKey) {
         console.warn(`[N8N Webhook] Invalid API key from IP: ${clientIp}`);
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
     }
-    // If neither is set, log a warning (open webhook - not recommended)
-    else {
-      console.warn('[N8N Webhook] No authentication configured. Set WEBHOOK_SECRET or N8N_API_KEY.');
+
+    // Enforce max body size (1MB) to prevent oversized payloads
+    const contentLength = request.headers.get('content-length');
+    const MAX_BODY_SIZE = 1_048_576; // 1MB
+    if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE) {
+      return NextResponse.json(
+        { error: 'Payload too large. Max 1MB.' },
+        { status: 413 }
+      );
     }
 
     const body = await request.json();
-    const { event, data } = webhookSchema.parse(body);
+    const { event, data, timestamp } = webhookSchema.parse(body);
+
+    // Replay attack prevention: reject events older than 5 minutes
+    {
+      const eventTime = new Date(timestamp).getTime();
+      const now = Date.now();
+      const MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+      if (isNaN(eventTime) || Math.abs(now - eventTime) > MAX_AGE_MS) {
+        console.warn(`[N8N Webhook] Rejected stale/invalid timestamp: ${timestamp} from IP: ${clientIp}`);
+        return NextResponse.json(
+          { error: 'Event timestamp too old or invalid. Max age: 5 minutes.' },
+          { status: 400 }
+        );
+      }
+    }
 
     // Log webhook-ul
     const log = await prisma.webhookLog.create({
@@ -223,32 +226,41 @@ export async function POST(request: NextRequest) {
     let result: unknown = null;
 
     // Procesează evenimentul
-    switch (event) {
-      case 'tender_found':
-        result = await handleTenderFound(data);
-        break;
-      case 'documents_downloaded':
-        result = await handleDocumentsDownloaded(data);
-        break;
-      case 'analysis_complete':
-        result = await handleAnalysisComplete(data);
-        break;
-      case 'clarification_published':
-        result = await handleClarificationPublished(data);
-        break;
-      case 'deadline_approaching':
-        result = await handleDeadlineApproaching(data);
-        break;
-      case 'tender_updated':
-        result = await handleTenderUpdated(data);
-        break;
-    }
+    try {
+      switch (event) {
+        case 'tender_found':
+          result = await handleTenderFound(data);
+          break;
+        case 'documents_downloaded':
+          result = await handleDocumentsDownloaded(data);
+          break;
+        case 'analysis_complete':
+          result = await handleAnalysisComplete(data);
+          break;
+        case 'clarification_published':
+          result = await handleClarificationPublished(data);
+          break;
+        case 'deadline_approaching':
+          result = await handleDeadlineApproaching(data);
+          break;
+        case 'tender_updated':
+          result = await handleTenderUpdated(data);
+          break;
+      }
 
-    // Actualizează log-ul
-    await prisma.webhookLog.update({
-      where: { id: log.id },
-      data: { status: 'processed' },
-    });
+      // Actualizează log-ul
+      await prisma.webhookLog.update({
+        where: { id: log.id },
+        data: { status: 'processed' },
+      });
+    } catch (handlerError) {
+      // Log failure to webhook_log so it doesn't stay as "received"
+      await prisma.webhookLog.update({
+        where: { id: log.id },
+        data: { status: 'failed' },
+      }).catch((e) => console.error('Failed to update webhook log:', e));
+      throw handlerError;
+    }
 
     return NextResponse.json({ success: true, logId: log.id, result });
   } catch (error) {
@@ -281,14 +293,10 @@ async function handleTenderFound(data: Record<string, unknown>) {
       },
     });
 
-    // Dacă nu există organizații, folosește prima organizație (sau skip)
+    // If no organizations match CPV codes, skip — don't assign to random org
     if (organizations.length === 0) {
-      // Creează tender pentru "sistem" - va fi vizibil tuturor
-      const firstOrg = await prisma.organization.findFirst();
-      if (!firstOrg) {
-        return { skipped: true, reason: 'no_organizations' };
-      }
-      organizations.push(firstOrg);
+      console.warn(`[N8N Webhook] No organization matches CPV code ${tenderData.cpvCode}. Tender ${tenderData.seapId} skipped.`);
+      return { skipped: true, reason: 'no_matching_organizations', cpvCode: tenderData.cpvCode };
     }
 
     const results = [];

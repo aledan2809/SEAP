@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendDeadlineAlerts } from '@/lib/email/notifications';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
 
 /**
  * API Route: /api/notifications/deadline-check
@@ -16,11 +17,26 @@ import { sendDeadlineAlerts } from '@/lib/email/notifications';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify cron secret for security
+    // Rate limit cron endpoint
+    const ip = getClientIp(request);
+    const limit = checkRateLimit(ip, RATE_LIMITS.cron);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429 }
+      );
+    }
+
+    // Verify cron secret — fail-secure: reject if CRON_SECRET is not configured
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret) {
+      console.error('[DEADLINE-CHECK] CRON_SECRET not configured. Rejecting request.');
+      return NextResponse.json({ error: 'Service not configured' }, { status: 503 });
+    }
+
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

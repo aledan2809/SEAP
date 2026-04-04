@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [2026-03-28] — P1 Audit Fixes (Accessibility, Security, Error Handling)
+- **Accessibility**: Added aria-labels to all icon buttons across header, sidebar, tenders, documents, watchdog pages
+- **Accessibility**: Added `scope="col"` to table header component for screen reader support
+- **Accessibility**: Associated form error messages with input fields via `aria-describedby` and `role="alert"` on login/register
+- **Accessibility**: Added text labels alongside color-only indicators (match score badges, urgent deadlines)
+- **Accessibility**: Added aria-labels to search input, filter select, clear buttons in tender filters
+- **Accessibility**: Marked decorative SVGs (Google logo) with `aria-hidden="true"`, improved avatar alt text fallback
+- **Accessibility**: Added `aria-current="page"` to active sidebar navigation links
+- **Accessibility**: Added `aria-hidden="true"` to all decorative nav/logo icons in sidebar
+- **Accessibility**: Added `aria-label` to theme toggle button (was only using `title`)
+- **Accessibility**: Added `aria-label="Meniu utilizator"` to user avatar dropdown trigger
+- **Security**: Added webhook timestamp validation to prevent replay attacks (5-minute max age)
+- **Security**: Upgraded `/api/scan` to verify admin role from DB (`userOrganization` table) instead of session-only check
+- **Security**: Added rate limiting to 5 previously unprotected routes (GET/DELETE invitations, GET/POST org, GET org invitations)
+- **UX**: Added password requirements hint on registration form
+- **Docs**: Updated CHANGELOG.md and STRATEGY.md with current project state
+
 ## [2026-03-19] — Production Deployment (Dual)
 - **Major**: Dual deployment active — Vercel + VPS2 (seap.knowbest.ro)
 - **Storage**: Cloudflare R2 bucket `seap-documents` configured (EU region)

@@ -200,7 +200,7 @@ export default async function WatchdogPage() {
                   const isExpired = daysUntilDeadline !== null && daysUntilDeadline <= 0;
 
                   return (
-                    <TableRow key={tender.id} className={isUrgent ? 'bg-orange-50' : ''}>
+                    <TableRow key={tender.id} className={isUrgent ? 'bg-orange-50' : ''} aria-label={isUrgent ? 'Licitație urgentă' : undefined}>
                       <TableCell>
                         <Link href={`/tenders/${tender.id}`} className="hover:underline">
                           <div className="font-medium line-clamp-2" title={tender.title}>
@@ -230,7 +230,7 @@ export default async function WatchdogPage() {
                             {new Date(tender.submissionDeadline).toLocaleDateString('ro-RO')}
                             {!isExpired && daysUntilDeadline !== null && daysUntilDeadline > 0 && (
                               <div className="text-xs text-muted-foreground">
-                                {daysUntilDeadline} zile rămase
+                                {daysUntilDeadline} zile rămase{isUrgent && ' — urgent!'}
                               </div>
                             )}
                             {isExpired && (
@@ -255,12 +255,12 @@ export default async function WatchdogPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" asChild>
+                          <Button variant="ghost" size="icon" asChild aria-label="Vezi detalii">
                             <Link href={`/tenders/${tender.id}`}>
                               <Eye className="h-4 w-4" />
                             </Link>
                           </Button>
-                          <Button variant="ghost" size="icon" asChild>
+                          <Button variant="ghost" size="icon" asChild aria-label="Deschide pe SEAP">
                             <a
                               href={tender.seapUrl}
                               target="_blank"

@@ -7,6 +7,52 @@ import { compare } from 'bcryptjs';
 import type { Provider } from 'next-auth/providers';
 import { logAction, AuditActions } from '@/lib/audit-log';
 
+// In-memory login attempt tracker for brute-force protection
+const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkLoginAttempt(email: string): { allowed: boolean; remainingMs?: number } {
+  const entry = loginAttempts.get(email);
+  if (!entry) return { allowed: true };
+
+  const now = Date.now();
+  if (entry.lockedUntil > now) {
+    return { allowed: false, remainingMs: entry.lockedUntil - now };
+  }
+
+  // Reset if lockout expired
+  if (now > entry.lockedUntil && entry.count >= MAX_ATTEMPTS) {
+    loginAttempts.delete(email);
+    return { allowed: true };
+  }
+
+  return { allowed: true };
+}
+
+function recordFailedLogin(email: string): void {
+  const entry = loginAttempts.get(email) || { count: 0, lockedUntil: 0 };
+  entry.count++;
+  if (entry.count >= MAX_ATTEMPTS) {
+    entry.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+  }
+  loginAttempts.set(email, entry);
+}
+
+function clearLoginAttempts(email: string): void {
+  loginAttempts.delete(email);
+}
+
+// Cleanup stale entries every 30 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, entry] of loginAttempts.entries()) {
+    if (now > entry.lockedUntil + LOCKOUT_DURATION_MS) {
+      loginAttempts.delete(email);
+    }
+  }
+}, 30 * 60 * 1000);
+
 // Local type definition for user with organization
 interface UserWithOrg {
   id: string;
@@ -34,8 +80,16 @@ const providers: Provider[] = [
         return null;
       }
 
+      const email = (credentials.email as string).toLowerCase();
+
+      // Brute-force protection: check if account is locked
+      const attemptCheck = checkLoginAttempt(email);
+      if (!attemptCheck.allowed) {
+        return null;
+      }
+
       const user = await prisma.user.findUnique({
-        where: { email: credentials.email as string },
+        where: { email },
         include: {
           organizations: {
             select: {
@@ -47,6 +101,7 @@ const providers: Provider[] = [
       }) as UserWithOrg | null;
 
       if (!user || !user.password) {
+        recordFailedLogin(email);
         return null;
       }
 
@@ -56,8 +111,12 @@ const providers: Provider[] = [
       );
 
       if (!isPasswordValid) {
+        recordFailedLogin(email);
         return null;
       }
+
+      // Successful login — clear failed attempts
+      clearLoginAttempts(email);
 
       // Get role from active organization or first organization
       const activeOrgLink = user.organizations.find(
@@ -88,7 +147,10 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  session: { strategy: 'jwt' },
+  session: {
+    strategy: 'jwt',
+    maxAge: 24 * 60 * 60, // 24 hours — tokens expire and require re-login
+  },
   pages: {
     signIn: '/login',
     newUser: '/register',

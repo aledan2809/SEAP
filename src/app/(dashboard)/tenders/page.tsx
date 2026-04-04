@@ -218,6 +218,7 @@ export default async function TendersPage({ searchParams }: PageProps) {
                             {daysUntilDeadline !== null && daysUntilDeadline > 0 && (
                               <div className="text-xs text-muted-foreground">
                                 {daysUntilDeadline} zile
+                                {daysUntilDeadline <= 3 && ' — urgent!'}
                               </div>
                             )}
                           </div>
@@ -229,6 +230,13 @@ export default async function TendersPage({ searchParams }: PageProps) {
                         {tender.matchScore !== null ? (
                           <Badge
                             variant="outline"
+                            title={
+                              tender.matchScore >= 80
+                                ? 'Potrivire ridicată'
+                                : tender.matchScore >= 60
+                                ? 'Potrivire medie'
+                                : 'Potrivire scăzută'
+                            }
                             className={
                               tender.matchScore >= 80
                                 ? 'border-green-500 text-green-700'
@@ -250,12 +258,12 @@ export default async function TendersPage({ searchParams }: PageProps) {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" asChild>
+                          <Button variant="ghost" size="icon" asChild aria-label="Vezi detalii">
                             <Link href={`/tenders/${tender.id}`}>
                               <Eye className="h-4 w-4" />
                             </Link>
                           </Button>
-                          <Button variant="ghost" size="icon" asChild>
+                          <Button variant="ghost" size="icon" asChild aria-label="Deschide pe SEAP">
                             <a
                               href={tender.seapUrl}
                               target="_blank"

@@ -4,12 +4,23 @@ import { prisma } from '@/lib/db';
 import { analyzeWithClaude } from '@/lib/ai/analyzer';
 import { Prisma } from '@prisma/client';
 import { logAction, AuditActions } from '@/lib/audit-log';
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Rate limit expensive AI analysis
+    const clientIp = getClientIp(request);
+    const limit = checkRateLimit(clientIp, RATE_LIMITS.analysis);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Prea multe cereri de analiză. Încearcă din nou în curând.' },
+        { status: 429 }
+      );
+    }
+
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

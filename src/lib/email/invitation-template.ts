@@ -2,6 +2,8 @@
  * Email template for organization invitations
  */
 
+import { escapeHtml } from '@/lib/utils';
+
 function baseLayout(content: string): string {
   return `<!DOCTYPE html>
 <html lang="ro">
@@ -25,6 +27,10 @@ export function invitationEmail(params: {
   acceptUrl: string;
   expiresAt: string;
 }): { subject: string; html: string; text: string } {
+  const safeName = escapeHtml(params.invitedByName);
+  const safeOrg = escapeHtml(params.organizationName);
+  const safeExpires = escapeHtml(params.expiresAt);
+
   return {
     subject: `Invitație în ${params.organizationName} - SEAP Assistant`,
     html: baseLayout(`
@@ -33,8 +39,8 @@ export function invitationEmail(params: {
       </div>
       <h2 style="margin:0 0 16px;font-size:18px;">Bine ai venit!</h2>
       <p style="margin:0 0 16px;color:#666;line-height:1.6;">
-        <strong>${params.invitedByName}</strong> te-a invitat să te alături organizației
-        <strong>${params.organizationName}</strong> pe platforma SEAP Assistant.
+        <strong>${safeName}</strong> te-a invitat să te alături organizației
+        <strong>${safeOrg}</strong> pe platforma SEAP Assistant.
       </p>
       <p style="margin:0 0 24px;color:#666;line-height:1.6;">
         Prin acceptarea acestei invitații, vei avea acces la monitorizarea licitațiilor,
@@ -44,7 +50,7 @@ export function invitationEmail(params: {
         <a href="${params.acceptUrl}" style="display:inline-block;padding:14px 32px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;">Acceptă Invitația</a>
       </div>
       <p style="margin:24px 0 0;color:#888;font-size:13px;text-align:center;">
-        Această invitație este valabilă până la ${params.expiresAt}
+        Această invitație este valabilă până la ${safeExpires}
       </p>
     `),
     text: `${params.invitedByName} te-a invitat în ${params.organizationName} pe SEAP Assistant.\n\nAcceptă invitația: ${params.acceptUrl}\n\nValabilă până la: ${params.expiresAt}`,
