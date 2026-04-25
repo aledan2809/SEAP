@@ -34,10 +34,18 @@ npm test           # Jest tests
   pre-uploaded `fileId`. Docs without any PDF reference go through the
   fallback (OCR-text path in analyzer.ts). NO MODIFICATIONS to analyzer.ts.
 - See `src/lib/ai/__tests__/analyzer-with-citations.test.ts` for usage.
-- Pilot: invoke from a single admin route or env-flagged feature toggle
-  before considering wider adoption. Each tender analyzed via this path
-  costs Files API uploads ($0.05-0.10 per tender depending on PDF size)
-  on top of the Sonnet/Opus completion.
+- **Pilot wiring (2026-04-25)**: `src/lib/ai/pilot-analyzer.ts` exposes
+  `runTenderAnalysis(tender)` which is the single import the route uses.
+  Routes to legacy `analyzeWithClaude` by default; flips to
+  `analyzeWithCitations` when `SEAP_CITATIONS_PILOT_ENABLED=1`.
+  Telemetry emitted as `[seap-citations-pilot] {…json…}` on every call
+  (latencyMs / citationCount / citedDocsCount / fellBackToLegacy /
+  errorMessage / modelUsed). Optional file sink at `logs/seap-citations-
+  pilot.jsonl` (gitignored). Audit log entry on `/api/tenders/[id]/
+  analyze` carries the same telemetry into the AuditAction table.
+- **Live validation status: DEFERRED** — Anthropic credit + sample
+  tenders with PDFs required to verify the citations path end-to-end.
+  9/9 jest tests cover the wiring offline (`pilot-analyzer.test.ts`).
 
 ## DO NOT MODIFY
 - SWOT analysis prompt structure in analyzer.ts

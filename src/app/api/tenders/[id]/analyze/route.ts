@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { analyzeWithClaude } from '@/lib/ai/analyzer';
+import { runTenderAnalysis } from '@/lib/ai/pilot-analyzer';
 import { Prisma } from '@prisma/client';
 import { logAction, AuditActions } from '@/lib/audit-log';
 import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
@@ -136,7 +136,11 @@ export async function POST(
       documents: tender.documents,
     };
 
-    const analysisResult = await analyzeWithClaude(tenderForAnalysis);
+    // Pilot adapter — routes to legacy analyzeWithClaude OR
+    // analyzeWithCitations based on SEAP_CITATIONS_PILOT_ENABLED env flag.
+    // Both paths return the same AnalysisResult shape; pilot path adds
+    // `citations` + `citedDocuments` for downstream defendability use.
+    const analysisResult = await runTenderAnalysis(tenderForAnalysis);
 
     // Save analysis to database
     const analysis = await prisma.tenderAnalysis.upsert({
@@ -189,7 +193,15 @@ export async function POST(
       action: AuditActions.ANALYSIS_RUN,
       resource: 'tender',
       resourceId: id,
-      details: { recommendation: analysis.recommendation, modelUsed: analysis.modelUsed },
+      details: {
+        recommendation: analysis.recommendation,
+        modelUsed: analysis.modelUsed,
+        // Pilot telemetry surfaced into audit log when citations path ran.
+        pilotPath: analysisResult.pilotPath,
+        citationCount: analysisResult.citations.length,
+        citedDocsCount: analysisResult.citedDocuments.length,
+        fellBackToLegacy: analysisResult.fellBackToLegacy,
+      },
       request,
     });
 
