@@ -60,12 +60,12 @@ describe('Rate Limiting', () => {
       expect(getClientIp(request)).toBe('9.8.7.6');
     });
 
-    it('handles x-forwarded-for with multiple IPs (takes proxy-adjacent IP)', () => {
+    it('handles x-forwarded-for with multiple IPs (takes rightmost trusted IP)', () => {
       const request = new Request('http://localhost', {
         headers: { 'x-forwarded-for': '10.0.0.1, 10.0.0.2, 10.0.0.3' },
       });
-      // Second-to-last = trusted proxy-adjacent IP
-      expect(getClientIp(request)).toBe('10.0.0.2');
+      // Rightmost = IP added by trusted proxy
+      expect(getClientIp(request)).toBe('10.0.0.3');
     });
 
     it('returns unknown when no IP headers present', () => {

@@ -16,6 +16,31 @@ interface DownloadError {
   error: string;
 }
 
+const ALLOWED_SEAP_DOMAINS = [
+  'e-licitatie.ro',
+  'www.e-licitatie.ro',
+  'pub.e-licitatie.ro',
+];
+
+function isAllowedSeapUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    return ALLOWED_SEAP_DOMAINS.some(
+      (domain) => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[/\\:*?"<>|\x00-\x1f]/g, '_')
+    .replace(/\.{2,}/g, '.')
+    .substring(0, 255);
+}
+
 /**
  * Descarcă un document de pe SEAP și îl salvează în R2/MinIO
  */
@@ -26,6 +51,15 @@ export async function downloadSeapDocument(
   filename?: string
 ): Promise<DownloadResult | DownloadError> {
   try {
+    // Validate URL to prevent SSRF
+    if (!isAllowedSeapUrl(url)) {
+      return {
+        success: false,
+        filename: filename || 'unknown',
+        error: `URL not allowed: must be from e-licitatie.ro domain`,
+      };
+    }
+
     // Fetch document from SEAP
     const response = await fetch(url, {
       headers: {
@@ -53,6 +87,9 @@ export async function downloadSeapDocument(
         finalFilename = match[1].replace(/['"]/g, '');
       }
     }
+
+    // Sanitize filename to prevent path traversal
+    finalFilename = sanitizeFilename(finalFilename);
 
     // Get content type
     const mimeType = response.headers.get('content-type') || 'application/octet-stream';
@@ -126,8 +163,8 @@ function extractFilenameFromUrl(url: string): string {
     const pathname = urlObj.pathname;
     const filename = pathname.split('/').pop() || 'document';
 
-    // Decode URL-encoded characters
-    return decodeURIComponent(filename);
+    // Decode URL-encoded characters and limit length
+    return decodeURIComponent(filename).substring(0, 255);
   } catch {
     return 'document';
   }

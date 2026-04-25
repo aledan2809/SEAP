@@ -92,15 +92,12 @@ export function getClientIp(request: Request): string {
   const cfIp = request.headers.get('cf-connecting-ip');
   if (cfIp) return cfIp.trim();
 
-  // Fallback: x-forwarded-for — take the LAST entry (closest proxy)
-  // instead of the first (client-supplied and spoofable)
+  // Fallback: x-forwarded-for — take the RIGHTMOST entry (added by trusted proxy)
+  // The leftmost entries are client-supplied and can be spoofed.
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
     const parts = forwarded.split(',').map(s => s.trim()).filter(Boolean);
-    // In Vercel/reverse-proxy setups, the rightmost IP is added by the
-    // trusted proxy. Take second-to-last if there are multiple (the proxy
-    // itself is last), or last if only one.
-    return parts.length > 1 ? parts[parts.length - 2] : parts[0] || 'unknown';
+    return parts[parts.length - 1] || 'unknown';
   }
 
   return 'unknown';

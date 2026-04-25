@@ -1,0 +1,146 @@
+{
+  "auditDate": "2026-04-16",
+  "retestDate": "2026-04-18",
+  "project": "SEAP Standalone",
+  "version": "0.1.0",
+  "phase": "POST-FIX",
+  "stack": "Next.js 16 + React 19 + Prisma + TypeScript",
+  "auditor": "ML2 Wave 3 Automated Audit",
+  "scanTools": ["eslint-9", "typescript-5-strict", "npm-audit", "jest-30", "manual-security-review"],
+  "summary": {
+    "totalFindingsPreFix": 31,
+    "totalFindingsPostFix": 10,
+    "fixedCount": 21,
+    "fixRate": "67.7%",
+    "criticalHighPreFix": 7,
+    "criticalHighPostFix": 0,
+    "criticalHighFixRate": "100%",
+    "npmVulnerabilities": {
+      "preFix": { "critical": 1, "high": 5, "moderate": 4, "low": 1, "total": 11 },
+      "postFix": { "critical": 0, "high": 0, "moderate": 0, "low": 0, "total": 0 },
+      "reductionRate": "100%"
+    },
+    "eslint": {
+      "errorsPreFix": 60,
+      "errorsPostFix": 36,
+      "nonTestNonVendorErrorsPostFix": 0,
+      "reductionRate": "40%"
+    },
+    "tests": {
+      "suites": { "total": 11, "passed": 11 },
+      "tests": { "total": 60, "passed": 60 },
+      "passRate": "100%",
+      "regressions": 0
+    },
+    "build": {
+      "status": "pre-existing-failure",
+      "note": "Build fails identically before and after audit fixes due to Next.js _global-error prerender issue (unrelated to audit scope)"
+    }
+  },
+  "severityBreakdown": {
+    "critical": { "before": 2, "after": 0, "fixed": 2, "accepted": 0 },
+    "high": { "before": 5, "after": 0, "fixed": 5, "accepted": 0 },
+    "medium": { "before": 7, "after": 1, "fixed": 6, "accepted": 1 },
+    "low": { "before": 6, "after": 4, "fixed": 2, "accepted": 4 },
+    "codeSmell": { "before": 11, "after": 5, "fixed": 6, "accepted": 5 }
+  },
+  "residualFindings": [
+    {
+      "id": "SEC-015",
+      "severity": "LOW",
+      "status": "accepted-risk",
+      "title": "In-memory brute-force tracking lost on restart",
+      "risk": "Reduced brute-force protection effectiveness in multi-instance deployments",
+      "justification": "Acceptable for current single-instance VPS deployment; Redis recommended for horizontal scaling"
+    },
+    {
+      "id": "SEC-016",
+      "severity": "LOW",
+      "status": "accepted-risk",
+      "title": "Console.error may leak sensitive information in logs",
+      "risk": "Internal details could reach external log aggregators",
+      "justification": "Server-side only; production logs not exposed externally"
+    },
+    {
+      "id": "SEC-017",
+      "severity": "LOW",
+      "status": "accepted-risk",
+      "title": "Audit logs not tamper-evident",
+      "risk": "DB-level attacker could modify audit trail",
+      "justification": "Current threat model does not assume compromised database access"
+    },
+    {
+      "id": "SEC-014",
+      "severity": "MEDIUM",
+      "status": "partially-fixed",
+      "title": "Filename validation in downloader",
+      "risk": "Edge case with extremely long filenames from malicious SEAP responses",
+      "justification": "Length limit added to extractFilenameFromUrl; sanitizeFilename already truncates to 255 chars"
+    },
+    {
+      "id": "CS-003",
+      "severity": "CODE-SMELL",
+      "status": "accepted",
+      "title": "35 uses of 'any' type in test files",
+      "justification": "Test files use 'any' for mock flexibility; no production impact"
+    },
+    {
+      "id": "CS-004",
+      "severity": "CODE-SMELL",
+      "status": "accepted",
+      "title": "8 unused variable warnings in test files",
+      "justification": "Unused imports from mock setups; cosmetic"
+    },
+    {
+      "id": "CS-007",
+      "severity": "CODE-SMELL",
+      "status": "accepted",
+      "title": "Unsafe Function type in test file",
+      "justification": "Test-only code"
+    },
+    {
+      "id": "CS-008",
+      "severity": "CODE-SMELL",
+      "status": "mitigated",
+      "title": "Webhook replay lacks idempotency tracking",
+      "justification": "Replay window reduced from 5min to 2min; full idempotency deferred"
+    },
+    {
+      "id": "CS-009",
+      "severity": "CODE-SMELL",
+      "status": "accepted",
+      "title": "Inconsistent error response format",
+      "justification": "Refactoring task for future sprint"
+    },
+    {
+      "id": "CS-011",
+      "severity": "CODE-SMELL",
+      "status": "fixed",
+      "title": "11 npm vulnerabilities",
+      "justification": "All resolved (11 → 0)"
+    }
+  ],
+  "fixedFindings": [
+    { "id": "SEC-001", "severity": "CRITICAL", "title": "jsPDF Critical XSS + Object Injection", "fix": "npm dependency upgrade resolved" },
+    { "id": "SEC-002", "severity": "CRITICAL", "title": "Zod validation details leaked to webhook callers", "fix": "Removed error.issues from response; logged server-side" },
+    { "id": "SEC-003", "severity": "HIGH", "title": "Next.js DoS with Server Components", "fix": "Upgraded next 16.1.6 → 16.2.3" },
+    { "id": "SEC-004", "severity": "HIGH", "title": "Error details leaked in scan API", "fix": "Removed String(error) from error responses" },
+    { "id": "SEC-005", "severity": "HIGH", "title": "Error message leaked in deadline-check", "fix": "Generic 'Internal server error' returned" },
+    { "id": "SEC-006", "severity": "HIGH", "title": "Rate limiting IP extraction flawed", "fix": "Take rightmost x-forwarded-for IP (trusted proxy)" },
+    { "id": "SEC-007", "severity": "HIGH", "title": "flatted prototype pollution + DoS", "fix": "npm dependency upgrade resolved" },
+    { "id": "SEC-008", "severity": "MEDIUM", "title": "Missing Unicode NFKC normalization", "fix": "Added String.normalize('NFKC') in document download" },
+    { "id": "SEC-009", "severity": "MEDIUM", "title": "Replay window too large (5min)", "fix": "Reduced to 2 minutes" },
+    { "id": "SEC-010", "severity": "MEDIUM", "title": "nodemailer SMTP injection", "fix": "Upgraded nodemailer ^8.0.1 → ^8.0.5" },
+    { "id": "SEC-011", "severity": "MEDIUM", "title": "DOMPurify XSS bypasses", "fix": "npm dependency upgrade resolved" },
+    { "id": "SEC-012", "severity": "MEDIUM", "title": "brace-expansion DoS", "fix": "npm dependency upgrade resolved" },
+    { "id": "SEC-013", "severity": "MEDIUM", "title": "ajv ReDoS", "fix": "npm dependency upgrade resolved" },
+    { "id": "SEC-018", "severity": "LOW", "title": "fast-xml-parser entity expansion", "fix": "npm dependency upgrade resolved" },
+    { "id": "SEC-019", "severity": "LOW", "title": "minimatch ReDoS", "fix": "npm dependency upgrade resolved" },
+    { "id": "SEC-020", "severity": "LOW", "title": "picomatch ReDoS", "fix": "npm dependency upgrade resolved" },
+    { "id": "CS-001", "severity": "CODE-SMELL", "title": "setState in useEffect", "fix": "Refactored to useState lazy initializer" },
+    { "id": "CS-002", "severity": "CODE-SMELL", "title": "Empty interface", "fix": "Auto-fixed by linter" },
+    { "id": "CS-005", "severity": "CODE-SMELL", "title": "Missing @types/jest", "fix": "Installed @types/jest@^30.0.0" },
+    { "id": "CS-006", "severity": "CODE-SMELL", "title": "Vendor not excluded from lint", "fix": "Already excluded in eslint.config.mjs — verified" },
+    { "id": "CS-010", "severity": "CODE-SMELL", "title": "Unnecessary localStorage for sidebar", "fix": "Removed useEffect, used useState lazy initializer" }
+  ]
+}

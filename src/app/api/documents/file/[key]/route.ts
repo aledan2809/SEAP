@@ -50,8 +50,11 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
     }
 
-    // Normalize the path first to collapse any Unicode or encoding tricks
-    const normalizedKey = path.normalize(decodedKey).replace(/\\/g, '/');
+    // Normalize Unicode representations (NFKC) to prevent bypass via alternate encodings
+    const unicodeNormalized = decodedKey.normalize('NFKC');
+
+    // Normalize the path to collapse any encoding tricks
+    const normalizedKey = path.normalize(unicodeNormalized).replace(/\\/g, '/');
 
     // Security: prevent path traversal — strict allowlist + resolve check
     // Block: .., backslash, double slash, null byte, leading slash, non-allowlist chars

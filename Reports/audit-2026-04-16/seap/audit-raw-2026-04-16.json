@@ -1,0 +1,329 @@
+{
+  "auditDate": "2026-04-16",
+  "project": "SEAP Standalone",
+  "version": "0.1.0",
+  "stack": "Next.js 16 + React 19 + Prisma + TypeScript",
+  "auditor": "ML2 Wave 3 Automated Audit",
+  "scanTools": ["eslint-9", "typescript-5-strict", "npm-audit", "jest-30", "manual-security-review"],
+  "summary": {
+    "totalFindings": 31,
+    "critical": 2,
+    "high": 5,
+    "medium": 7,
+    "low": 6,
+    "codeSmells": 11,
+    "npmVulnerabilities": {
+      "critical": 1,
+      "high": 5,
+      "moderate": 4,
+      "low": 1,
+      "total": 11
+    },
+    "eslint": {
+      "errors": 60,
+      "warnings": 8,
+      "errorsByRule": {
+        "@typescript-eslint/no-explicit-any": 35,
+        "@typescript-eslint/no-require-imports": 22,
+        "@typescript-eslint/no-unsafe-function-type": 1,
+        "react-hooks/set-state-in-effect": 1,
+        "@typescript-eslint/no-empty-object-type": 1
+      }
+    },
+    "typescript": {
+      "status": "failing",
+      "reason": "Missing @types/jest — all 11 test files produce TS errors for jest/describe/it/expect"
+    }
+  },
+  "findings": [
+    {
+      "id": "SEC-001",
+      "severity": "CRITICAL",
+      "category": "Dependency",
+      "cwe": "CWE-79",
+      "title": "jsPDF Critical XSS + Object Injection (<=4.2.0)",
+      "file": "package.json",
+      "description": "jspdf@4.2.0 has HTML Injection in New Window paths (CVSS 9.6) and PDF Object Injection via FreeText color (CVSS 8.1)",
+      "recommendation": "Upgrade jspdf to >=4.2.1",
+      "advisory": ["GHSA-wfv2-pwc8-crg5", "GHSA-7x6v-j9x4-qf24"]
+    },
+    {
+      "id": "SEC-002",
+      "severity": "CRITICAL",
+      "category": "Information-Disclosure",
+      "cwe": "CWE-209",
+      "title": "Zod validation details leaked to webhook callers",
+      "file": "src/app/api/webhooks/n8n/route.ts",
+      "line": 271,
+      "description": "ZodError.issues array is returned in webhook response, exposing internal validation schema to external callers",
+      "recommendation": "Return generic error message; log details server-side only"
+    },
+    {
+      "id": "SEC-003",
+      "severity": "HIGH",
+      "category": "Dependency",
+      "cwe": "CWE-770",
+      "title": "Next.js DoS with Server Components (16.0.0-16.2.2)",
+      "file": "package.json",
+      "description": "next@16.1.6 has multiple vulnerabilities: DoS via Server Components (CVSS 7.5), HTTP request smuggling, CSRF bypass, unbounded image cache",
+      "recommendation": "Upgrade next to >=16.2.3",
+      "advisory": ["GHSA-q4gf-8mx6-v5v3", "GHSA-ggv3-7p47-pfv8", "GHSA-mq59-m269-xvcx"]
+    },
+    {
+      "id": "SEC-004",
+      "severity": "HIGH",
+      "category": "Information-Disclosure",
+      "cwe": "CWE-209",
+      "title": "Error details leaked in scan API responses",
+      "file": "src/app/api/scan/route.ts",
+      "line": [126, 173],
+      "description": "String(error) returned in both GET and POST error handlers exposes stack traces and internal errors",
+      "recommendation": "Return generic error message; log details server-side only"
+    },
+    {
+      "id": "SEC-005",
+      "severity": "HIGH",
+      "category": "Information-Disclosure",
+      "cwe": "CWE-209",
+      "title": "Error message leaked in deadline-check response",
+      "file": "src/app/api/notifications/deadline-check/route.ts",
+      "line": 59,
+      "description": "error.message returned to caller potentially exposes internal details",
+      "recommendation": "Return generic error message; log details server-side only"
+    },
+    {
+      "id": "SEC-006",
+      "severity": "HIGH",
+      "category": "Rate-Limiting",
+      "cwe": "CWE-307",
+      "title": "Rate limiting IP extraction flawed for x-forwarded-for",
+      "file": "src/lib/rate-limit.ts",
+      "line": 103,
+      "description": "Takes second-to-last x-forwarded-for IP instead of rightmost trusted IP. Attackers can inject IPs to bypass rate limiting.",
+      "recommendation": "Take the rightmost IP (added by trusted proxy)"
+    },
+    {
+      "id": "SEC-007",
+      "severity": "HIGH",
+      "category": "Dependency",
+      "cwe": "CWE-674",
+      "title": "flatted prototype pollution + DoS (<=3.4.1)",
+      "file": "package.json",
+      "description": "flatted has unbounded recursion DoS in parse() and prototype pollution",
+      "recommendation": "Update flatted to patched version",
+      "advisory": ["GHSA-25h7-pfq9-p65f", "GHSA-rf6f-7fwh-wjgh"]
+    },
+    {
+      "id": "SEC-008",
+      "severity": "MEDIUM",
+      "category": "Path-Traversal",
+      "cwe": "CWE-22",
+      "title": "Missing Unicode NFKC normalization on file paths",
+      "file": "src/app/api/documents/file/[key]/route.ts",
+      "line": 54,
+      "description": "path.normalize() does not handle Unicode normalization attacks; different Unicode representations could bypass validation",
+      "recommendation": "Apply String.normalize('NFKC') before path validation"
+    },
+    {
+      "id": "SEC-009",
+      "severity": "MEDIUM",
+      "category": "Replay-Attack",
+      "cwe": "CWE-613",
+      "title": "Replay attack window too large (5 minutes)",
+      "file": "src/app/api/webhooks/n8n/route.ts",
+      "line": 206,
+      "description": "5-minute replay window allows intercepted webhooks to be replayed multiple times",
+      "recommendation": "Reduce window to 2 minutes"
+    },
+    {
+      "id": "SEC-010",
+      "severity": "MEDIUM",
+      "category": "Dependency",
+      "cwe": "CWE-93",
+      "title": "nodemailer SMTP command injection (<=8.0.4)",
+      "file": "package.json",
+      "description": "nodemailer has SMTP command injection via CRLF in transport name",
+      "recommendation": "Upgrade nodemailer to >=8.0.5",
+      "advisory": ["GHSA-c7w3-x93f-qmm8", "GHSA-vvjj-xcjg-gr5g"]
+    },
+    {
+      "id": "SEC-011",
+      "severity": "MEDIUM",
+      "category": "Dependency",
+      "cwe": "CWE-79",
+      "title": "DOMPurify multiple XSS vulnerabilities (<=3.3.3)",
+      "file": "package.json",
+      "description": "dompurify has mutation-XSS, ADD_ATTR URI validation bypass, prototype pollution, ADD_TAGS bypass",
+      "recommendation": "Update dompurify via dependency chain",
+      "advisory": ["GHSA-h8r8-wccr-v5f2"]
+    },
+    {
+      "id": "SEC-012",
+      "severity": "MEDIUM",
+      "category": "Dependency",
+      "cwe": "CWE-400",
+      "title": "brace-expansion DoS via zero-step sequences",
+      "file": "package.json",
+      "description": "brace-expansion <1.1.13 causes process hang and memory exhaustion",
+      "advisory": ["GHSA-f886-m6hf-6m8v"]
+    },
+    {
+      "id": "SEC-013",
+      "severity": "MEDIUM",
+      "category": "Dependency",
+      "cwe": "CWE-400",
+      "title": "ajv ReDoS with $data option",
+      "file": "package.json",
+      "description": "ajv <6.14.0 has regular expression denial of service",
+      "advisory": ["GHSA-2g4f-4pwh-qvx6"]
+    },
+    {
+      "id": "SEC-014",
+      "severity": "MEDIUM",
+      "category": "Input-Validation",
+      "cwe": "CWE-400",
+      "title": "Missing filename length validation in downloader",
+      "file": "src/lib/seap/downloader.ts",
+      "line": 130,
+      "description": "decodeURIComponent(filename) not length-validated; malicious responses could include extremely long filenames",
+      "recommendation": "Truncate to 255 characters"
+    },
+    {
+      "id": "SEC-015",
+      "severity": "LOW",
+      "category": "Security",
+      "cwe": "CWE-613",
+      "title": "In-memory brute-force tracking lost on restart",
+      "file": "src/lib/auth/index.ts",
+      "line": 11,
+      "description": "JavaScript Map for login attempt tracking does not persist across restarts or horizontal scaling"
+    },
+    {
+      "id": "SEC-016",
+      "severity": "LOW",
+      "category": "Information-Disclosure",
+      "cwe": "CWE-532",
+      "title": "Console.error may leak sensitive information in logs",
+      "file": "multiple API routes",
+      "description": "Full error objects logged via console.error may include SQL errors or credentials"
+    },
+    {
+      "id": "SEC-017",
+      "severity": "LOW",
+      "category": "Security",
+      "cwe": "CWE-344",
+      "title": "Audit logs not tamper-evident",
+      "file": "src/lib/audit-log.ts",
+      "description": "Audit logs stored without cryptographic chaining"
+    },
+    {
+      "id": "SEC-018",
+      "severity": "LOW",
+      "category": "Dependency",
+      "cwe": "CWE-776",
+      "title": "fast-xml-parser entity expansion bypass (via @aws-sdk)",
+      "file": "package.json",
+      "advisory": ["GHSA-8gc5-j5rx-235r"]
+    },
+    {
+      "id": "SEC-019",
+      "severity": "LOW",
+      "category": "Dependency",
+      "cwe": "CWE-1333",
+      "title": "minimatch ReDoS (indirect dependency)",
+      "file": "package.json",
+      "advisory": ["GHSA-3ppc-4f35-3m26"]
+    },
+    {
+      "id": "SEC-020",
+      "severity": "LOW",
+      "category": "Dependency",
+      "cwe": "CWE-1333",
+      "title": "picomatch ReDoS (indirect dependency)",
+      "file": "package.json",
+      "advisory": ["GHSA-c2c7-rcm5-vvqj"]
+    },
+    {
+      "id": "CS-001",
+      "severity": "CODE-SMELL",
+      "category": "React",
+      "title": "setState called synchronously inside useEffect",
+      "file": "src/components/dashboard/sidebar.tsx",
+      "line": 100,
+      "description": "setOpen() in useEffect body causes cascading renders; should use useState lazy initializer"
+    },
+    {
+      "id": "CS-002",
+      "severity": "CODE-SMELL",
+      "category": "TypeScript",
+      "title": "Empty interface declaration",
+      "file": "src/components/ui/command.tsx",
+      "line": 26
+    },
+    {
+      "id": "CS-003",
+      "severity": "CODE-SMELL",
+      "category": "TypeScript",
+      "title": "35 uses of 'any' type in test files",
+      "file": "src/__tests__/**/*.test.ts"
+    },
+    {
+      "id": "CS-004",
+      "severity": "CODE-SMELL",
+      "category": "TypeScript",
+      "title": "8 unused variable warnings in test files",
+      "file": "src/__tests__/**/*.test.ts"
+    },
+    {
+      "id": "CS-005",
+      "severity": "CODE-SMELL",
+      "category": "TypeScript",
+      "title": "Missing @types/jest for TypeScript type checking",
+      "file": "tsconfig.json"
+    },
+    {
+      "id": "CS-006",
+      "severity": "CODE-SMELL",
+      "category": "Configuration",
+      "title": "22 require() imports in vendor library not excluded from linting",
+      "file": "src/lib/vendor/ai-router/**/*.js"
+    },
+    {
+      "id": "CS-007",
+      "severity": "CODE-SMELL",
+      "category": "TypeScript",
+      "title": "Unsafe Function type in test file",
+      "file": "src/__tests__/security/csrf-middleware.test.ts"
+    },
+    {
+      "id": "CS-008",
+      "severity": "CODE-SMELL",
+      "category": "Security",
+      "title": "Webhook replay prevention lacks idempotency tracking",
+      "file": "src/app/api/webhooks/n8n/route.ts",
+      "line": 203
+    },
+    {
+      "id": "CS-009",
+      "severity": "CODE-SMELL",
+      "category": "API-Design",
+      "title": "Inconsistent error response format across API routes",
+      "file": "src/app/api/**/*.ts"
+    },
+    {
+      "id": "CS-010",
+      "severity": "CODE-SMELL",
+      "category": "React",
+      "title": "Unnecessary localStorage persistence for mobile sidebar state",
+      "file": "src/components/dashboard/sidebar.tsx",
+      "line": 97
+    },
+    {
+      "id": "CS-011",
+      "severity": "CODE-SMELL",
+      "category": "Dependencies",
+      "title": "npm audit reports 11 total vulnerabilities across dependency tree",
+      "file": "package.json"
+    }
+  ]
+}

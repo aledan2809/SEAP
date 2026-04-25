@@ -199,15 +199,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { event, data, timestamp } = webhookSchema.parse(body);
 
-    // Replay attack prevention: reject events older than 5 minutes
+    // Replay attack prevention: reject events older than 2 minutes
     {
       const eventTime = new Date(timestamp).getTime();
       const now = Date.now();
-      const MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+      const MAX_AGE_MS = 2 * 60 * 1000; // 2 minutes
       if (isNaN(eventTime) || Math.abs(now - eventTime) > MAX_AGE_MS) {
         console.warn(`[N8N Webhook] Rejected stale/invalid timestamp: ${timestamp} from IP: ${clientIp}`);
         return NextResponse.json(
-          { error: 'Event timestamp too old or invalid. Max age: 5 minutes.' },
+          { error: 'Event timestamp too old or invalid. Max age: 2 minutes.' },
           { status: 400 }
         );
       }
@@ -267,8 +267,9 @@ export async function POST(request: NextRequest) {
     console.error('Webhook error:', error);
 
     if (error instanceof z.ZodError) {
+      console.warn('[N8N Webhook] Validation error:', error.issues);
       return NextResponse.json(
-        { error: 'Invalid payload', details: error.issues },
+        { error: 'Invalid payload' },
         { status: 400 }
       );
     }

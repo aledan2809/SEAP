@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -91,15 +91,13 @@ export function Sidebar() {
 
 // Mobile sidebar — Sheet with auto-close on navigate and localStorage persistence
 export function MobileSidebar() {
-  const [open, setOpen] = useState(false);
-
-  // Load sidebar state from localStorage on mount
-  useEffect(() => {
-    const savedState = localStorage.getItem('mobile-sidebar-open');
-    if (savedState) {
-      setOpen(savedState === 'true');
+  const [open, setOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedState = localStorage.getItem('mobile-sidebar-open');
+      return savedState === 'true';
     }
-  }, []);
+    return false;
+  });
 
   // Save sidebar state to localStorage when it changes
   const handleOpenChange = (newOpen: boolean) => {

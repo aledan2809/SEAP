@@ -53,7 +53,7 @@ export function deadlineAlertEmail(tender: TenderInfo): { subject: string; html:
   const safeDeadline = escapeHtml(tender.submissionDeadline);
 
   return {
-    subject: `[${urgencyLabel}] Deadline în ${tender.daysRemaining} ${tender.daysRemaining === 1 ? 'zi' : 'zile'}: ${tender.title.substring(0, 60)}`,
+    subject: `[${urgencyLabel}] Deadline în ${tender.daysRemaining} ${tender.daysRemaining === 1 ? 'zi' : 'zile'}: ${tender.title.substring(0, 60).replace(/[\r\n\t]/g, ' ')}`,
     html: baseLayout(`
       <div style="padding:12px 16px;background:${urgencyColor}10;border-left:4px solid ${urgencyColor};border-radius:4px;margin-bottom:24px;">
         <strong style="color:${urgencyColor};">Deadline în ${tender.daysRemaining} ${tender.daysRemaining === 1 ? 'zi' : 'zile'}!</strong>
