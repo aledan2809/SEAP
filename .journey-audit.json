@@ -1,0 +1,32 @@
+{
+  "name": "seap",
+  "baseUrl": "https://seap.knowbest.ro",
+  "login": {
+    "path": "/login",
+    "emailSelector": "input#email",
+    "passwordSelector": "input#password",
+    "submitSelector": "button[type=submit]",
+    "successUrlPattern": "/(dashboard|tenders|analysis|documents|watchdog|settings)"
+  },
+  "credentials": {
+    "emailEnv": "JOURNEY_EMAIL",
+    "passwordEnv": "JOURNEY_PASSWORD"
+  },
+  "navLinks": [
+    { "name": "Dashboard", "href": "/dashboard" },
+    { "name": "Licitații", "href": "/tenders" },
+    { "name": "Analiză AI", "href": "/analysis" },
+    { "name": "Documente", "href": "/documents" },
+    { "name": "Watchdog", "href": "/watchdog" },
+    { "name": "Setări", "href": "/settings" },
+    { "name": "Invitations", "href": "/invitations" },
+    { "name": "Privacy", "href": "/privacy" },
+    { "name": "Terms", "href": "/terms" }
+  ],
+  "onboardingMarkers": "Creează organizație|Configurează|Setup|Create.*org|first.*organization",
+  "emptyStateMarkers": "Nu există|Nicio licitație|No tenders|empty|nu au fost găsite|Nu am găsit",
+  "errorMarkers": "error|eroare|failed|eșuat|Internal Server",
+  "viewport": { "width": 1440, "height": 900 },
+  "pageTimeout": 25000,
+  "settleDelay": 2500
+}

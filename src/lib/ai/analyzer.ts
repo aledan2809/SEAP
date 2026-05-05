@@ -1,5 +1,4 @@
 import { aiRouter } from '../ai-router';
-import { execSync } from 'child_process';
 
 // Types based on Prisma schema
 interface TenderForAnalysis {
@@ -127,26 +126,6 @@ Răspunde cu un JSON valid având exact această structură:
 }
 
 /**
- * Analyze with Claude CLI (no API credits needed, uses user's Claude Code session).
- * Falls back to API if CLI is not available.
- */
-async function analyzeWithClaudeCLI(prompt: string): Promise<string> {
-  const fullPrompt = `${SYSTEM_PROMPT}\n\n${prompt}`;
-  // Use claude CLI with --print flag for non-interactive output
-  const result = execSync(
-    `claude -p --output-format text`,
-    {
-      input: fullPrompt,
-      encoding: 'utf-8',
-      timeout: 120_000,
-      maxBuffer: 1024 * 1024,
-      env: { ...process.env, ANTHROPIC_API_KEY: undefined }, // Don't inherit API key for CLI
-    }
-  );
-  return result.trim();
-}
-
-/**
  * Rule-based fallback analysis when neither CLI nor API are available.
  * Generates a basic SWOT based on tender data (CPV match, value, deadline).
  */
@@ -246,33 +225,24 @@ export async function analyzeWithClaude(tender: TenderForAnalysis): Promise<Anal
   let responseText: string;
   let modelUsed: string;
 
-  // Strategy: try Claude CLI first (no API credits), then API, then rule-based fallback
+  // AIRouter handles full fallback chain internally: free providers (Gemini/Groq/Cerebras/etc.) → claude-cli → error
   try {
-    console.log('Trying Claude CLI for analysis...');
-    responseText = await analyzeWithClaudeCLI(prompt);
-    modelUsed = 'claude-cli';
-    console.log('Claude CLI analysis succeeded');
-  } catch (cliError) {
-    console.log('Claude CLI not available, trying API...', (cliError as Error).message);
+    const aiResponse = await aiRouter.chat({
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      provider: 'auto',
+      maxTokens: 4096,
+      taskHint: 'analysis',
+      languageHint: 'ro',
+    });
 
-    try {
-      const aiResponse = await aiRouter.chat({
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: prompt },
-        ],
-        provider: 'auto',
-        maxTokens: 4096,
-        taskHint: 'analysis',
-        languageHint: 'ro',
-      });
-
-      responseText = aiResponse.content.trim();
-      modelUsed = aiResponse.model || aiResponse.provider;
-    } catch (apiError) {
-      console.log('AIRouter failed, falling back to rule-based analysis:', (apiError as Error).message);
-      return ruleBasedAnalysis(tender);
-    }
+    responseText = aiResponse.content.trim();
+    modelUsed = aiResponse.model || aiResponse.provider;
+  } catch (apiError) {
+    console.log('[SEAP] AIRouter exhausted all providers, falling back to rule-based analysis:', (apiError as Error).message);
+    return ruleBasedAnalysis(tender);
   }
 
   // Extract JSON from potential markdown code blocks
