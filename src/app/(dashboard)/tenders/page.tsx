@@ -208,7 +208,7 @@ export default async function TendersPage({ searchParams }: PageProps) {
                               daysUntilDeadline !== null && daysUntilDeadline <= 3
                                 ? 'text-red-600 font-medium'
                                 : daysUntilDeadline !== null && daysUntilDeadline <= 7
-                                ? 'text-orange-600'
+                                ? 'text-orange-700'
                                 : ''
                             }
                           >

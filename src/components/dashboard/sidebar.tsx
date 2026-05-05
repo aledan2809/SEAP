@@ -108,9 +108,8 @@ export function MobileSidebar() {
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="lg:hidden">
-          <Menu className="h-6 w-6" />
-          <span className="sr-only">Deschide meniu</span>
+        <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Deschide meniu">
+          <Menu className="h-6 w-6" aria-hidden="true" />
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-0" showCloseButton={false}>
