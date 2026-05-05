@@ -108,19 +108,16 @@
 ---
 
 ### G-SEAP-011 — Deadline notification fără deduplicare
-- **Status**: **OPEN** — MEDIUM
-- **Descoperit**: 2026-05-05 (E7 test)
-- **Comportament**: `sendDeadlineAlerts()` nu verifică dacă alertă deja trimisă azi → dublu-run = email duplicat
-- **Reproducere**: `POST /api/notifications/deadline-check` × 2 aceeași zi → `sent: 2` de fiecare dată
-- **Fix propus**: câmp `lastAlertSentAt` pe `TenderWatcher` sau tabel `DeadlineAlert(tenderId, userId, date)` UNIQUE
+- **Status**: **ELIMINATED** — 2026-05-05 (s3, commit `5538ab5`)
+- **Fix aplicat**: `sendDeadlineAlerts()` citește AuditLog la start pentru entries `deadline.alert` din ziua curentă. Construiește Set `${tenderId}-${days}` — skip tender dacă deja în set. După trimitere reușită, scrie entry nou în AuditLog și adaugă în set. Run 1: `sent:2`; Run 2 (same day): `sent:0` ✅
+- **Approach**: fără migrare schema — refolosește AuditLog existent.
 
 ---
 
 ### G-SEAP-012 — Company Document Upload neimplementat
-- **Status**: **OPEN** — HIGH
-- **Descoperit**: 2026-05-05 (E10 test)
-- **Stare**: model `CompanyDocument` există în schema, buton UI prezent în `/documents`, dar **nu există API endpoint** pentru upload
-- **Fix propus**: `POST /api/organizations/[id]/documents` — multipart, R2/FS storage, creare row cu `expiresAt`
+- **Status**: **ELIMINATED** — 2026-05-05 (s3, commit `HEAD`)
+- **Fix aplicat**: `POST /api/organizations/[id]/documents` creat — multipart, R2/FS storage via `uploadCompanyDocument()`, creare `CompanyDocument` row cu `expiresAt`, audit log `DOC_UPLOAD`. `GET` endpoint bonus pentru listare.
+- **Verificat**: upload ISO_9001 PDF → `{id, storagePath, expiresAt}` în răspuns ✅; GET → `[{doc}]` ✅; MEMBER POST → 403 ✅
 
 ---
 
@@ -150,6 +147,8 @@
 | 2026-05-05 (s3) | G-SEAP-010 | **ELIMINATED** — commit `3ea5b5e`: sidebar aria-label, tenders color-contrast, privacy underline |
 | 2026-05-05 (s3) | G-SEAP-011 | OPEN — dublu-run cron trimite email duplicat (lipsă deduplicare în sendDeadlineAlerts) |
 | 2026-05-05 (s3) | G-SEAP-012 | OPEN — CompanyDocument upload API inexistent (UI placeholder only) |
+| 2026-05-05 (s3) | G-SEAP-011 | **ELIMINATED** — commit `5538ab5`: AuditLog-based same-day dedup; Run2 sent:0 ✅ |
+| 2026-05-05 (s3) | G-SEAP-012 | **ELIMINATED** — POST+GET `/api/organizations/[id]/documents`: upload→201, list→200, MEMBER→403 ✅ |
 | 2026-05-05 (s3) | E2-E3-E5-E6-E8 | PASS — scan/match/analyze/status-lifecycle/invite/cross-org verificate end-to-end |
 | 2026-05-05 (s3) | F1-F3 | PASS — seapId UNIQUE, last-write-wins, multi-org CPV isolation ✅ |
 | 2026-05-05 (s3) | H2 | PASS — cross-org tender access blocat la 404/403 (scoped via userOrganizations) |

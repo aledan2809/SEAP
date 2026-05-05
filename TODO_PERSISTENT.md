@@ -85,11 +85,11 @@
   - Verify: user adăugat la org cu rolul corect (MEMBER)
   - Verify: token marcat accepted, nu mai e reutilizabil
 
-- [~] **E7 — Deadline Notification Email** — PARTIAL 2026-05-05 (s3) — G-SEAP-011 (no dedup)
+- [x] **E7 — Deadline Notification Email** — DONE 2026-05-05 (s3, G-SEAP-011 ELIMINATED commit `5538ab5`)
   - Tender cu `submissionDeadline` în <3 zile
   - Trigger `POST /api/notifications/deadline-check` (cu CRON_SECRET)
-  - Verify: email trimis la OWNER + ADMIN (nu MEMBER dacă nu e configurat)
-  - Verify: nu se trimite de 2× dacă cron rulează de 2× în aceeași zi ← **FAIL** (G-SEAP-011)
+  - Verify: email trimis la OWNER + ADMIN (nu MEMBER dacă nu e configurat) ✅
+  - Verify: nu se trimite de 2× dacă cron rulează de 2× în aceeași zi ✅ (Run1: sent:2, Run2: sent:0)
 
 - [x] **E8 — Multi-tenant User (Cross-org access)** — DONE 2026-05-05 (s3)
   - User B5 autentificat
@@ -104,12 +104,11 @@
   - Verify: sesiune activă după redirect
   - **BLOCAT** pe A2 (Google Cloud Console redirect URI)
 
-- [~] **E10 — Company Document Upload** — BLOCKED 2026-05-05 (s3) — G-SEAP-012
-  - Upload certificat ISO 9001 via company documents
-  - Verify: fișier stocat în R2 (sau FS fallback)
-  - Verify: `expiresAt` tracked, metadata JSON salvat
-  - Verify: document apare în UI company documents list
-  - **BLOCAT**: `POST /api/organizations/[id]/documents` nu există (G-SEAP-012)
+- [x] **E10 — Company Document Upload** — DONE 2026-05-05 (s3, G-SEAP-012 ELIMINATED)
+  - Upload certificat ISO 9001 via company documents ✅
+  - Verify: fișier stocat în R2 (sau FS fallback) ✅ (storagePath: `orgId/company/iso_9001-*.pdf`)
+  - Verify: `expiresAt` tracked, metadata JSON salvat ✅
+  - Verify: document apare în GET list ✅; MEMBER POST → 403 ✅
 
 - [~] **E11 — NO_GO Rejection Workflow** — PARTIAL 2026-05-05 (s3)
   - Tender cu SWOT analysis negativă → recommendation = NO_GO (setat manual în DB)
@@ -195,3 +194,4 @@ Config file: `.journey-audit.json` ✅ (existent, configurat corect)
 | 2026-05-05 | True E2E Full Audit [10] — sesiune completă | **A1 ELIMINATED** (port 3011→3019, nginx, PM2 standalone). **B+C seeded** (5 users, 2 orgs, 25 tenders). **[7] CODE 77/100**. **E1-E13 + F1-F3 + H2-H3 + I2** = 19/22 PASS (E5/E11/H3 script errors, E9=G-SEAP-003). **[8] Journey 6/9 OK** (3 GATED = onboarding walls, expected). Raport: `Reports/TRUE-E2E-FULL-2026-05-05.md`. Blocante rămase: A2 (Google OAuth, manual), A3 (Vercel 404), H1, I1. |
 | 2026-05-05 (s2) | Sesiunea 2 — D-Infrastructure + G1-G4 | **G-SEAP-003**: OAuth server flow CORECT (POST+CSRF → accounts.google.com redirect ✅). **D1-D4 DONE**: scan live (200/100), Neon 83 tenders, R2 configured, email 4 trimise. **G1-G4 DONE**: G1(6OK/3GATED)+G2(parity)+G3(mobile 0 overlap)+G4(axe-core: login clean, tenders 1 critical+2 serious, privacy 2 serious). Gap nou: G-SEAP-010 (a11y WCAG2AA). |
 | 2026-05-05 (s3) | Sesiunea 3 — E11-E12-F1-F3-H2-H3-I1 | **G-SEAP-010 ELIMINATED** (commit `3ea5b5e`: sidebar aria-label, tenders orange-700, privacy underline+blue-700). **E11 PARTIAL** (NO_GO setat manual; filtrul default include IGNORED — G-SEAP-011 OPEN). **E12 PASS** (audit-logs 200 OWNER/ADMIN, 403 MEMBER). **F1-F3 PASS** (seapId UNIQUE, last-write-wins, Org2 izolat CPV 90000000). **H2 PASS** (cross-org 404/403 confirmat în cod). **H3 PASS** (B5 switch via POST /api/organizations/[id], 101+18 tenders izolate). **I1 PASS** (200 tenders în 6.6s, 0 erori, 0 duplicate, 100% matchScore). Gaps noi: G-SEAP-011 (deadline dedup), G-SEAP-012 (CompanyDocument upload API). Blocante rămase: E4/E9/E13/H1/I2. |
+| 2026-05-05 (s3 cont) | Sesiunea 3 continuare — G-SEAP-011 + G-SEAP-012 | **G-SEAP-011 ELIMINATED** (commit `5538ab5`): AuditLog-based same-day dedup în `sendDeadlineAlerts()`; Run1 sent:2, Run2 sent:0 ✅. **G-SEAP-012 ELIMINATED**: `POST /api/organizations/[id]/documents` creat — multipart, R2 storage, expiresAt; upload→201, list→200, MEMBER→403 ✅. **E7 → [x] DONE, E10 → [x] DONE**. Blocante rămase: E4/E9/E13/H1/I2 (externe/manual). |
