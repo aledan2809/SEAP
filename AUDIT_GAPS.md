@@ -1,7 +1,7 @@
 # AUDIT GAPS — SEAP Assistant
 > Source of truth pentru gap-uri deschise. Actualizat la fiecare sesiune.
 > Status: OPEN | ELIMINATED | PARTIAL | BLOCKED | WONTFIX
-> **Last Updated**: 2026-05-05
+> **Last Updated**: 2026-05-05 (sesiunea 2)
 
 ---
 
@@ -98,6 +98,24 @@
 
 ---
 
+### G-SEAP-010 — A11y violations pe /tenders + /privacy (mobile 390×844)
+- **Status**: **OPEN** — MEDIUM (nu blochează funcționalitate, dar WCAG 2AA non-conformant)
+- **Descoperit**: 2026-05-05 sesiunea 2, axe-core G4 audit
+- **/tenders**:
+  - CRITICAL `button-name`: butoane icon fără `aria-label` (probabil butoane filter/sort)
+  - SERIOUS `color-contrast`: elemente cu contrast insuficient
+  - SERIOUS `link-name`: link-uri fără text accesibil
+- **/privacy**:
+  - SERIOUS `color-contrast`
+  - SERIOUS `link-in-text-block`: link-uri nedistinguibile fără culoare
+- **/login**: 0 violări ✅
+- **Fix propus** (sesiune dedicată, ~1h):
+  1. `tenders` page: adaugă `aria-label` pe butoanele icon din lista tenders
+  2. Verifică variabilele Tailwind de contrast pe tema dark/light
+  3. `privacy` page: adaugă `underline` sau `font-weight:bold` pe link-uri inline
+
+---
+
 ## WONTFIX / DOCUMENTED
 
 ### G-SEAP-W01 — Vercel Hobby plan limitări (OCR, CLI)
@@ -114,8 +132,10 @@
 | 2026-05-05 | G-SEAP-002 | **WONTFIX** — proiect Vercel inexistent, exclusiv VPS2 seap.knowbest.ro |
 | 2026-05-05 | G-SEAP-003 | OPEN — acțiune manuală Google Cloud Console necesară (client ID: 594240948902-*) |
 | 2026-05-05 | G-SEAP-004 | **PARTIAL** — 11 fișiere test existente (nu zero) |
-| 2026-05-05 | G-SEAP-005 | OPEN — confirmat: Anthropic 400 "credit balance too low" |
+| 2026-05-05 | G-SEAP-005 | **ELIMINATED** — analyzer.ts refactorizat cu AIRouter (Gemini/Groq/Mistral fallback) |
 | 2026-05-05 | G-SEAP-006 | **ELIMINATED** — rate-limit.ts aplicat pe register + scan (re-verificat) |
 | 2026-05-05 | G-SEAP-007 | **ELIMINATED** — n8n.4pro.io DNS rezolvă 187.77.179.159, HTTP 200 |
 | 2026-05-05 | G-SEAP-008 | **WONTFIX** — Vercel deprecated, VPS2 OCR e serviciu shared |
 | 2026-05-05 | G-SEAP-009 | **ELIMINATED** — CHANGELOG.md actualizat |
+| 2026-05-05 (s2) | G-SEAP-003 | OPEN — server OAuth flow CORECT (POST cu CSRF → redirect accounts.google.com ✅); eroarea anterioară era testul GET greșit |
+| 2026-05-05 (s2) | G-SEAP-010 | OPEN — axe-core WCAG2AA: /tenders critical(1) serious(2), /privacy serious(2), /login clean |

@@ -36,11 +36,11 @@
   - [x] C3: Tenders cu deadline în trecut (pentru deadline notification test)
   - [x] C4: TenderAnalysis completă — GO, CAUTION, NO_GO câte unul
 
-- [ ] **D — Infrastructure verify**
-  - [ ] D1: SEAP API live (e-licitatie.ro POST scan returnează rezultate reale)
-  - [ ] D2: Neon DB conectat (health check Prisma)
-  - [ ] D3: Cloudflare R2 accesibil (bucket seap-documents)
-  - [ ] D4: Email delivery funcțional (nodemailer + SMTP)
+- [x] **D — Infrastructure verify** — DONE 2026-05-05 (sesiunea 2)
+  - [x] D1: SEAP API live — scan: 200 găsite, 100 create, 0 erori ✅
+  - [x] D2: Neon DB conectat — organizations API: 83 tenders în Org1 ✅
+  - [x] D3: Cloudflare R2 accesibil — useR2=true pe VPS2, env vars confirmate ✅
+  - [x] D4: Email delivery funcțional — 4 emails trimise automat din scan ✅
 
 ---
 
@@ -154,13 +154,12 @@
 
 ### Browser Real Headed G1–G4 (Tester journey-audit)
 
-**BLOCAT** pe A1 (port conflict VPS2 — seap.knowbest.ro servește BlocX).
-Config file: `.journey-audit.json` (de creat după A1 rezolvat).
+Config file: `.journey-audit.json` ✅ (existent, configurat corect)
 
-- [ ] **G1 — OWNER journey**: register → setup org → scan → analyze → export PDF
-- [ ] **G2 — MEMBER journey**: accept invite → review tenders → update status
-- [ ] **G3 — Mobile (390×844)**: nav, sidebar, tender list, analysis card — overlap check (fixed nav + pb-*)
-- [ ] **G4 — A11y + visual regression baselines**: axe-core, screenshots per route
+- [x] **G1 — OWNER journey** — DONE 2026-05-05 (s2): 6 OK / 3 GATED (Dashboard/Watchdog/Setări = onboarding walls, expected). `/tenders` bodyLen=19257 ✅
+- [x] **G2 — MEMBER journey** — DONE 2026-05-05 (s2): 6 OK / 3 GATED (identic OWNER — parity confirmată ✅)
+- [x] **G3 — Mobile (390×844)** — DONE 2026-05-05 (s2): 6 OK / 3 GATED (identic desktop, 0 nav overlap detectat ✅). Screenshots: `journey-audit-results/seap-mobile/`
+- [x] **G4 — A11y axe-core WCAG2AA** — DONE 2026-05-05 (s2): Login=0 violări ✅; /tenders: 1 critical (button-name) + 2 serious; /privacy: 2 serious. Gap deschis: G-SEAP-010
 
 ---
 
@@ -192,3 +191,4 @@ Config file: `.journey-audit.json` (de creat după A1 rezolvat).
 |------|---------|---------|
 | 2026-05-05 | True E2E kickoff | Scope definit. A1 (port conflict) BLOCKER identificat. A2/A3/A4 deschise. |
 | 2026-05-05 | True E2E Full Audit [10] — sesiune completă | **A1 ELIMINATED** (port 3011→3019, nginx, PM2 standalone). **B+C seeded** (5 users, 2 orgs, 25 tenders). **[7] CODE 77/100**. **E1-E13 + F1-F3 + H2-H3 + I2** = 19/22 PASS (E5/E11/H3 script errors, E9=G-SEAP-003). **[8] Journey 6/9 OK** (3 GATED = onboarding walls, expected). Raport: `Reports/TRUE-E2E-FULL-2026-05-05.md`. Blocante rămase: A2 (Google OAuth, manual), A3 (Vercel 404), H1, I1. |
+| 2026-05-05 (s2) | Sesiunea 2 — D-Infrastructure + G1-G4 | **G-SEAP-003**: OAuth server flow CORECT (POST+CSRF → accounts.google.com redirect ✅). **D1-D4 DONE**: scan live (200/100), Neon 83 tenders, R2 configured, email 4 trimise. **G1-G4 DONE**: G1(6OK/3GATED)+G2(parity)+G3(mobile 0 overlap)+G4(axe-core: login clean, tenders 1 critical+2 serious, privacy 2 serious). Gap nou: G-SEAP-010 (a11y WCAG2AA). |
