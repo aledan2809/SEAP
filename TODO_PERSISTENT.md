@@ -128,7 +128,7 @@
   - Verify: `citations[]` non-empty în response
   - Verify: `citedDocuments[]` conține referința la PDF
   - Verify: fallback la legacy path când Files API fail (graceful)
-  - **BLOCAT** pe A4 (Anthropic API credits + PDF tender cu documente)
+  - **TODO sesiune viitoare**: A4 NU mai e blocker — AIRouter are fallback pe Claude CLI (fără credite Anthropic). Deblocabil prin: (1) setează `SEAP_CITATIONS_PILOT_ENABLED=1` pe VPS2, (2) atașează un PDF real la un tender existent în DB, (3) rulează analyze → verifică citations în response. Fallback-ul legacy funcționează deja via Gemini/Groq.
 
 ---
 
