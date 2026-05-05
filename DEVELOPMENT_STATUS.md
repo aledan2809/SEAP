@@ -1,111 +1,94 @@
 # SEAP Assistant - Development Status
 
-**Last Updated:** 2026-03-19 22:30
-**Status:** DEPLOYED — Vercel + VPS2 (dual deployment)
+**Last Updated:** 2026-05-05
+**Status:** LIVE — VPS2 exclusiv (`seap.knowbest.ro`, port 3019, PM2 standalone)
 **URLs:**
-- https://seap-assistant.vercel.app (Vercel, serverless)
-- https://seap.knowbest.ro (VPS2, PM2 port 3011, SSL)
+- https://seap.knowbest.ro ✅ LIVE (VPS2 port 3019)
+- ~~seap-assistant.vercel.app~~ — WONTFIX (proiect inexistent în Vercel)
 
 ---
 
-## Sesiune 2026-03-19
+## Sesiunea 2026-05-05 — True E2E Full Audit [10]
 
 ### Completate
-- [x] **Git commit** — 46 fișiere, Phase 1-3 comise (`3d3d181`)
-- [x] **Cloudflare R2** — bucket `seap-documents` creat (Eastern Europe, Standard)
-  - API Token: Object Read & Write, specific bucket only
-  - Account ID: `7c9cd0106833ea908263631071ffbe1e`
-  - Access Key + Secret Key configurate în .env + Vercel + Master credentials
-- [x] **n8n on VPS1** — descoperit Docker container activ pe 187.77.179.159:5678
-  - nginx conf exista dar DNS-ul nu rezolva → adăugat IP-ul direct în server_name
-  - Accesibil pe `http://187.77.179.159` cu Host header
-  - TODO: configurează subdomain n8n.4pro.io cu DNS A record
-- [x] **Deploy VPS2** — SEAP live la seap.knowbest.ro
-  - tar.gz upload (nu git clone — repo privat)
-  - PM2 `seap` process, port 3011
-  - nginx reverse proxy + SSL (certbot)
-  - DNS A record: seap.knowbest.ro → 72.62.155.74
-- [x] **R2 env vars on Vercel** — R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
+- [x] **G-SEAP-001 ELIMINATED** — Port conflict rezolvat: 3011→3019, nginx updated, PM2 standalone rebuild, `pm2 save`
+- [x] **G-SEAP-002 WONTFIX** — Vercel deprecated (`vercel projects ls` confirmă proiect inexistent)
+- [x] **G-SEAP-003 OPEN** — Google OAuth: redirect URI `https://seap.knowbest.ro/api/auth/callback/google` lipsește din Google Cloud Console. Client ID: `594240948902-c06c9qlnhui8f8j9ov4ouv06r2fckr25`. Acțiune manuală user necesară.
+- [x] **G-SEAP-004 PARTIAL** — 11 fișiere test existente (4 security + 7 API), nu zero
+- [x] **G-SEAP-005 ELIMINATED** — `analyzer.ts` refactorizat să folosească AIRouter direct (Gemini/Groq/Mistral → claude-cli fallback). VPS2 are `GEMINI_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`. Anthropic credits nu mai sunt blocante.
+- [x] **G-SEAP-006 ELIMINATED** — `src/lib/rate-limit.ts` activ pe register (10/min) + scan (3/min) + 5 rute
+- [x] **G-SEAP-007 ELIMINATED** — n8n.4pro.io DNS rezolvă, HTTP 200
+- [x] **G-SEAP-008 WONTFIX** — Vercel deprecated, OCR = shared ocr-model VPS2
+- [x] **G-SEAP-009 ELIMINATED** — CHANGELOG.md actualizat cu entry 2026-05-05
+- [x] **Test accounts seeded** (Phase B): 5 useri × 2 organizații, toate cu `Test@2026!`
+  - Org1: `seap-test-owner@test.local` (OWNER), `seap-test-admin@test.local` (ADMIN), `seap-test-member@test.local` (MEMBER)
+  - Org2: `seap-test-owner2@test.local` (OWNER2)
+  - Cross: `seap-test-cross@test.local` (access la ambele orgs)
+- [x] **Fixture tenders seeded** (Phase C): 20 tenders Org1 + 5 tenders Org2, cu status distribuite, TenderAnalysis GO/CAUTION/NO_GO
+- [x] **E2E scenarios**: `e2e-scenarios/run_scenarios.sh` — **21/22 PASS** (E9 GATED pe G-SEAP-003 Google OAuth)
+  - Fix aplicat: PUT→PATCH pe E5/E11/H3 (SEAP routes folosesc PATCH)
+  - Fix aplicat: E1 acceptă 400 cu "există" (comportament SEAP pentru duplicate email)
+- [x] **Journey audit** ([8]): 6/9 OK, 3 GATED (Dashboard/Watchdog/Setări = onboarding walls, expected)
+- [x] **Deploy VPS2**: `analyzer.ts` + `ai-router.ts` (lipsea!) copiate, rebuild Next.js standalone, PM2 restart → HTTP 200 ✅
 
-### Sesiune anterioară (2026-03-18)
-- [x] Claude CLI fallback — analyzer folosește `claude -p` când API-ul nu are credit
-- [x] Cron fix — scan la 7 AM UTC zilnic + deadline check la 9 AM UTC
-- [x] Google OAuth — credentials adăugate în .env + Vercel env vars
-- [x] Vercel env vars complete
-- [x] Deploy Vercel — build success, LIVE
-- [x] OCR service — pornit pe localhost:8000
-- [x] SEAP scanner — 319 licitații în DB
-- [x] Claude analysis test — CLI fallback verificat pe licitație reală
-
-### Phase 1-3 (sesiuni anterioare)
-- [x] Mobile responsive sidebar, CPV autocomplete, email notifications, PDF export
-- [x] Audit log API, Invitations API
-- [x] Dark mode, Invitations page, Cron deadline notifications, n8n webhook improvements
+### Commit final sesiune
+- `ce5a7da` — fix(analyzer): use AIRouter fallback chain instead of manual claude-cli call
 
 ---
 
-## Acțiuni rămase
+## Stare Curentă
 
-### Necesită acțiune manuală
-- [ ] **Google Cloud Console** — adaugă redirect URI: `https://seap.knowbest.ro/api/auth/callback/google` + `https://seap-assistant.vercel.app/api/auth/callback/google`
-- [ ] **n8n.4pro.io DNS** — adaugă A record `n8n` → `187.77.179.159` la registrarul 4pro.io
-- [ ] **Anthropic API credits** — reîncarcă pentru analiza API pe Vercel (CLI nu există pe serverless)
+### Infrastructură
+| Component | Status | Detalii |
+|-----------|--------|---------|
+| VPS2 PM2 | ✅ online | port 3019, pid activ |
+| nginx | ✅ | proxy_pass 127.0.0.1:3019 |
+| Neon PostgreSQL | ✅ | conectat |
+| AI Analysis | ✅ | AIRouter: Gemini/Groq/Mistral → claude-cli |
+| Rate Limiting | ✅ | src/lib/rate-limit.ts, 7 rute |
+| Google OAuth | ⚠️ OPEN | redirect URI lipsește — acțiune manuală user |
 
-### Nice to have
-- [ ] **SEAP în AI Pipeline** — adaugă SEAP la project-router.js pentru mesh visibility
-- [ ] **n8n workflow** — configurează workflow SEAP scraper pe instanța VPS1
-- [ ] **OCR pe VPS** — deploy ocr-model pe VPS2 pentru document processing remote
-
----
-
-## Stare curentă
-
-### Funcțional
-- **Scanner SEAP** — direct API call la e-licitatie.ro, CPV + keyword matching
-- **AI Analysis** — Claude CLI (gratuit) cu fallback la API; SWOT, recommendation GO/CAUTION/NO_GO
-- **Email notifications** — opportunity reports, deadline alerts, daily digests
-- **PDF export** — /api/tenders/[id]/pdf
-- **Dark mode** — next-themes
-- **Cron jobs** — scan zilnic 7 AM UTC, deadline check 9 AM UTC
-- **Google OAuth** — cod complet, credentials configurate (lipsește redirect URI în Console)
-- **OCR** — serviciu local FastAPI pe port 8000
-- **R2 Storage** — bucket `seap-documents` activ, credentials complete
-- **Dual deploy** — Vercel (serverless) + VPS2 seap.knowbest.ro (PM2)
+### AUDIT_GAPS.md stare finală
+| Gap | Status |
+|-----|--------|
+| G-SEAP-001 Port conflict | ELIMINATED ✅ |
+| G-SEAP-002 Vercel 404 | WONTFIX ✅ |
+| G-SEAP-003 Google OAuth | **OPEN** ⚠️ |
+| G-SEAP-004 Teste | PARTIAL ✅ |
+| G-SEAP-005 Anthropic credits | ELIMINATED ✅ |
+| G-SEAP-006 Rate limiting | ELIMINATED ✅ |
+| G-SEAP-007 n8n DNS | ELIMINATED ✅ |
+| G-SEAP-008 OCR | WONTFIX ✅ |
+| G-SEAP-009 CHANGELOG | ELIMINATED ✅ |
 
 ---
 
-## Technical Notes
+## TODO Sesiune Viitoare
 
-### Architecture
-- **Scanner**: `src/lib/seap/scanner.ts` — single POST to SEAP API, client-side CPV/keyword filtering
-- **Analyzer**: `src/lib/ai/analyzer.ts` — Claude CLI first, then API fallback
-- **Storage**: `src/lib/storage/index.ts` — R2 with local filesystem fallback
-- **Auth**: NextAuth v5 + PrismaAdapter, JWT sessions, Credentials + Google OAuth
-- **DB**: Neon PostgreSQL, 319 tenders, 1 organization
+### Prioritate imediată
+- [ ] **G-SEAP-003** (user action): adaugă `https://seap.knowbest.ro/api/auth/callback/google` în Google Cloud Console → client `594240948902-*` → Authorized redirect URIs
+- [ ] **E9 Google OAuth** — verifică după fix: `curl -L "https://seap.knowbest.ro/api/auth/signin/google"` → trebuie redirect la `accounts.google.com`
 
-### VPS2 Deploy
-- **Path**: `/var/www/seap`
-- **PM2**: `seap` process, port 3011
-- **nginx**: `/etc/nginx/sites-enabled/seap` → proxy_pass http://127.0.0.1:3011
-- **SSL**: Let's Encrypt via certbot, expires 2026-06-17
-- **NEXTAUTH_URL**: `https://seap.knowbest.ro`
-- **Deploy method**: tar.gz upload (no git on VPS for this project)
+### True E2E restant (TODO_PERSISTENT.md)
+- [ ] **D — Infrastructure verify**: D1 SEAP API live (e-licitatie.ro scan real), D2 Neon health, D3 R2 bucket, D4 email SMTP
+- [ ] **G1-G4 Browser headed** (Playwright): OWNER journey, MEMBER journey, mobile 390x844, a11y
+- [ ] **H1 Parity** — declară N/A (Vercel deprecated)
+- [ ] **I1 Stress test** — 100+ tenders scan paralel pe prod
 
-### n8n on VPS1
-- **Docker**: `n8n-n8n-1` container, port 5678 (127.0.0.1 only)
-- **nginx**: `/etc/nginx/sites-enabled/n8n.conf` → proxy_pass http://127.0.0.1:5678
-- **server_name**: `n8n.4pro.io n8n.srv1423263.hstgr.cloud 187.77.179.159`
-- **Status**: Running, accessible via IP
+### Îmbunătățiri
+- [ ] Adaugă `src/lib/ai-router.ts` în deploy rsync (a lipsit și a blocat build-ul)
+- [ ] G-SEAP-004: adaugă 3 teste integration (invite flow, status lifecycle, multi-tenant isolation)
 
-### Vercel Config
-- Hobby plan: 2 daily crons max
-- Env vars: DATABASE_URL, DIRECT_URL, AUTH_SECRET, AUTH_TRUST_HOST, NEXTAUTH_URL, ANTHROPIC_API_KEY, N8N_API_KEY, N8N_WEBHOOK_URL, CRON_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, DAILY_DIGEST_HOUR_UTC, DAILY_DIGEST_MINUTE_WINDOW, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
+---
 
-### R2 Credentials
-- Account ID: `7c9cd0106833ea908263631071ffbe1e`
-- Bucket: `seap-documents` (EU, Standard)
-- API Token: Object Read & Write, specific bucket only, TTL Forever
-- Stored in: .env, Vercel env vars, Master credentials
-
-### Git Status
-- All committed, latest: `3d3d181` — Phase 1-3 complete
+## Note Tehnice
+- **Deploy SEAP VPS2**: NU git repo — rsync/scp manual + build pe VPS2
+  ```bash
+  scp src/lib/ai/analyzer.ts root@72.62.155.74:/var/www/seap/src/lib/ai/
+  ssh root@72.62.155.74 "cd /var/www/seap && npm run build && cp -r .next/static .next/standalone/.next/ && cp -r public/. .next/standalone/public/ && pm2 restart seap"
+  ```
+- **SEAP routes**: PATCH (nu PUT) pentru `/api/tenders/[id]/status` și `/api/user/profile`
+- **Email duplicate**: SEAP returnează 400 (nu 409) pentru email deja existent la register
+- **AIRouter pe SEAP**: `"ai-router": "file:../AIRouter/ai-router-1.0.0.tgz"` în package.json
+- **Journey audit**: `npx @aledan007/tester@0.3.0 journey-audit --email seap-test-owner@test.local --password "Test@2026!"`
+- **Test credentials**: toți userii au parola `Test@2026!`
