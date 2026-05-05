@@ -99,20 +99,28 @@
 ---
 
 ### G-SEAP-010 — A11y violations pe /tenders + /privacy (mobile 390×844)
-- **Status**: **OPEN** — MEDIUM (nu blochează funcționalitate, dar WCAG 2AA non-conformant)
-- **Descoperit**: 2026-05-05 sesiunea 2, axe-core G4 audit
-- **/tenders**:
-  - CRITICAL `button-name`: butoane icon fără `aria-label` (probabil butoane filter/sort)
-  - SERIOUS `color-contrast`: elemente cu contrast insuficient
-  - SERIOUS `link-name`: link-uri fără text accesibil
-- **/privacy**:
-  - SERIOUS `color-contrast`
-  - SERIOUS `link-in-text-block`: link-uri nedistinguibile fără culoare
-- **/login**: 0 violări ✅
-- **Fix propus** (sesiune dedicată, ~1h):
-  1. `tenders` page: adaugă `aria-label` pe butoanele icon din lista tenders
-  2. Verifică variabilele Tailwind de contrast pe tema dark/light
-  3. `privacy` page: adaugă `underline` sau `font-weight:bold` pe link-uri inline
+- **Status**: **ELIMINATED** — 2026-05-05 (True E2E sesiunea 3, commit `3ea5b5e`)
+- **Fix aplicat**:
+  1. `sidebar.tsx`: `aria-label="Deschide meniu"` + `aria-hidden="true"` pe icon (button-name)
+  2. `tenders/page.tsx`: `text-orange-600` → `text-orange-700` (color-contrast WCAG AA)
+  3. `privacy/page.tsx`: link-uri cu `underline` + `text-blue-700` (link-in-text-block + contrast)
+
+---
+
+### G-SEAP-011 — Deadline notification fără deduplicare
+- **Status**: **OPEN** — MEDIUM
+- **Descoperit**: 2026-05-05 (E7 test)
+- **Comportament**: `sendDeadlineAlerts()` nu verifică dacă alertă deja trimisă azi → dublu-run = email duplicat
+- **Reproducere**: `POST /api/notifications/deadline-check` × 2 aceeași zi → `sent: 2` de fiecare dată
+- **Fix propus**: câmp `lastAlertSentAt` pe `TenderWatcher` sau tabel `DeadlineAlert(tenderId, userId, date)` UNIQUE
+
+---
+
+### G-SEAP-012 — Company Document Upload neimplementat
+- **Status**: **OPEN** — HIGH
+- **Descoperit**: 2026-05-05 (E10 test)
+- **Stare**: model `CompanyDocument` există în schema, buton UI prezent în `/documents`, dar **nu există API endpoint** pentru upload
+- **Fix propus**: `POST /api/organizations/[id]/documents` — multipart, R2/FS storage, creare row cu `expiresAt`
 
 ---
 
@@ -139,3 +147,11 @@
 | 2026-05-05 | G-SEAP-009 | **ELIMINATED** — CHANGELOG.md actualizat |
 | 2026-05-05 (s2) | G-SEAP-003 | OPEN — server OAuth flow CORECT (POST cu CSRF → redirect accounts.google.com ✅); eroarea anterioară era testul GET greșit |
 | 2026-05-05 (s2) | G-SEAP-010 | OPEN — axe-core WCAG2AA: /tenders critical(1) serious(2), /privacy serious(2), /login clean |
+| 2026-05-05 (s3) | G-SEAP-010 | **ELIMINATED** — commit `3ea5b5e`: sidebar aria-label, tenders color-contrast, privacy underline |
+| 2026-05-05 (s3) | G-SEAP-011 | OPEN — dublu-run cron trimite email duplicat (lipsă deduplicare în sendDeadlineAlerts) |
+| 2026-05-05 (s3) | G-SEAP-012 | OPEN — CompanyDocument upload API inexistent (UI placeholder only) |
+| 2026-05-05 (s3) | E2-E3-E5-E6-E8 | PASS — scan/match/analyze/status-lifecycle/invite/cross-org verificate end-to-end |
+| 2026-05-05 (s3) | F1-F3 | PASS — seapId UNIQUE, last-write-wins, multi-org CPV isolation ✅ |
+| 2026-05-05 (s3) | H2 | PASS — cross-org tender access blocat la 404/403 (scoped via userOrganizations) |
+| 2026-05-05 (s3) | H3 | PASS — B5 switch via POST /api/organizations/[id], date izolate Org1/Org2 |
+| 2026-05-05 (s3) | I1 | PASS — 200 tenders în 6.6s, 0 erori, 0 duplicate seapId, 100% matchScore |

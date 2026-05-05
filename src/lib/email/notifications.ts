@@ -48,9 +48,27 @@ function getNotificationRecipients(userOrganizations: OrganizationUserLink[]): s
  */
 export async function sendDeadlineAlerts(): Promise<{ sent: number; errors: number }> {
   const stats = { sent: 0, errors: 0 };
-
-  // Find watched tenders with deadlines in 1, 3, or 7 days
   const now = new Date();
+
+  // Build dedup set from AuditLog entries written today for deadline alerts.
+  // Prevents duplicate emails when cron runs more than once per day.
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const sentToday = await prisma.auditLog.findMany({
+    where: { action: 'deadline.alert', createdAt: { gte: todayStart } },
+    select: { resourceId: true, details: true },
+  });
+  const alreadySent = new Set<string>(
+    sentToday
+      .filter(
+        (l) =>
+          l.resourceId &&
+          l.details !== null &&
+          typeof (l.details as Record<string, unknown>).days === 'number'
+      )
+      .map((l) => `${l.resourceId}-${(l.details as { days: number }).days}`)
+  );
+
   const alertDays = [1, 3, 7];
 
   for (const days of alertDays) {
@@ -85,6 +103,9 @@ export async function sendDeadlineAlerts(): Promise<{ sent: number; errors: numb
     });
 
     for (const tender of tenders) {
+      const dedupeKey = `${tender.id}-${days}`;
+      if (alreadySent.has(dedupeKey)) continue;
+
       const emails = getNotificationRecipients(
         tender.organization.userOrganizations as OrganizationUserLink[]
       );
@@ -106,10 +127,24 @@ export async function sendDeadlineAlerts(): Promise<{ sent: number; errors: numb
         appUrl: `${APP_URL}/tenders/${tender.id}`,
       });
 
+      let tenderSent = 0;
       for (const email of emails) {
         const ok = await sendEmail({ to: email, ...template });
-        if (ok) stats.sent++;
+        if (ok) { stats.sent++; tenderSent++; }
         else stats.errors++;
+      }
+
+      // Mark as sent in AuditLog so a second cron run today skips this tender
+      if (tenderSent > 0) {
+        await prisma.auditLog.create({
+          data: {
+            action: 'deadline.alert',
+            resource: 'tender',
+            resourceId: tender.id,
+            details: { days },
+          },
+        });
+        alreadySent.add(dedupeKey);
       }
     }
   }
