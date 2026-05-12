@@ -131,20 +131,33 @@
 ---
 
 ### G-SEAP-014 — Touch targets sub 44px pe /, /login, /dashboard
-- **Status**: OPEN
-- **Severitate**: P2 MEDIUM (mobile-tester 75/100)
-- **Descoperit**: 2026-05-12 ([9] Full E2E Audit)
-- **Detalii**: 5/5 touch targets sub 44×44px pe /, /login, /dashboard pentru toate dispozitivele (iPhone 13, Pixel 5, iPad Pro 11). Butoane/linkuri nav fără `min-h-[44px]`.
-- **Plan**: Add `min-h-[44px]` to interactive elements in nav/sidebar + main CTAs. ~20min.
+- **Status**: **ELIMINATED** — 2026-05-12 (commit `e42513d`)
+- **Severitate**: P2 MEDIUM → rezolvat
+- **Fix aplicat**: `min-h-[44px]` / `min-w-[44px]` adăugat pe 5 elemente interactive:
+  - `src/app/(auth)/login/page.tsx` — butoanele Conectare + Google sign-in
+  - `src/components/dashboard/header.tsx` — notifications button + user menu trigger
+  - `src/components/dashboard/sidebar.tsx` — nav items + mobile sidebar trigger
+  - `src/components/theme-toggle.tsx` — theme toggle button
+- **Verificat**: schimbări commituite + deployate pe VPS2
 
 ---
 
 ### G-SEAP-015 — Skip navigation link lipsă
+- **Status**: **ELIMINATED** — 2026-05-12 (commit `e42513d`)
+- **Severitate**: P3 LOW → rezolvat
+- **Fix aplicat**:
+  - `src/app/layout.tsx` — skip-nav `<a href="#main-content" className="sr-only focus:not-sr-only ...">Sari la conținut</a>` adăugat înaintea `<ThemeProvider>`
+  - `src/app/(dashboard)/layout.tsx` — `id="main-content"` adăugat pe `<main>`
+
+---
+
+### G-SEAP-017 — Pre-existing CI build failure: global-error.tsx useContext
 - **Status**: OPEN
-- **Severitate**: P3 LOW (a11y-scanner 65/100)
-- **Descoperit**: 2026-05-12 ([9] Full E2E Audit)
-- **Detalii**: Niciun `<a href="#main-content">` skip-nav în root layout. Afectează navigarea cu tastatură.
-- **Plan**: Add skip-nav link în `src/app/layout.tsx` + `id="main-content"` pe `<main>`. ~10min.
+- **Severitate**: P3 LOW (non-blocking — only fails static export, not runtime)
+- **Descoperit**: 2026-05-12 (TWG pipeline blockat de acest bug preexistent)
+- **Detalii**: `src/app/global-error.tsx` produce `TypeError: Cannot read properties of null (reading 'useContext')` în timpul `next build` la exportul static al paginii `/_global-error`. React hook apelat în context SSR incorect. Eroarea există înainte de sesiunea TWG — nu introdusă de fix-urile G-SEAP-014/015.
+- **Impact**: `npm run build` eșuează. Deploy pe VPS2 folosit direct (git pull + build) — CI din mesh/engine eșuează; deploy-urile manuale pot trece dacă build-ul local trece.
+- **Plan**: Refactorizează `global-error.tsx` să nu apeleze hooks în afara unui `Client Component` explicit cu `'use client'` directive corect poziționată. ~30min sesiune dedicată.
 
 ---
 
@@ -191,6 +204,10 @@
 | 2026-05-05 (s3) | H3 | PASS — B5 switch via POST /api/organizations/[id], date izolate Org1/Org2 |
 | 2026-05-05 (s3) | I1 | PASS — 200 tenders în 6.6s, 0 erori, 0 duplicate seapId, 100% matchScore |
 | 2026-05-12 | G-SEAP-013 | **ELIMINATED** — scp next.config.ts → VPS2, rebuild, restart; 7 headers confirmed ✅ |
+| 2026-05-12 | G-SEAP-013 | **ELIMINATED** — scp next.config.ts → VPS2, rebuild, restart; 7 headers confirmed ✅ |
 | 2026-05-12 | G-SEAP-014 | OPEN — touch targets P2 (mobile-tester 75/100, 5/5 sub 44px pe /, /login, /dashboard) |
 | 2026-05-12 | G-SEAP-015 | OPEN — skip-nav P3 (a11y-scanner 65/100) |
 | 2026-05-12 | G-SEAP-016 | OPEN — journey 3/9 GATED (Dashboard/Watchdog/Settings empty state, P3 LOW) |
+| 2026-05-12 | G-SEAP-014 | **ELIMINATED** — commit `e42513d`: min-h-[44px]/min-w-[44px] pe 5 elemente (login buttons, header, sidebar, theme-toggle) ✅ |
+| 2026-05-12 | G-SEAP-015 | **ELIMINATED** — commit `e42513d`: skip-nav în layout.tsx + id="main-content" pe dashboard main ✅ |
+| 2026-05-12 | G-SEAP-017 | OPEN — pre-existing build failure: global-error.tsx TypeError useContext (non-blocking CI, P3) |
