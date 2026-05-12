@@ -50,7 +50,7 @@ export function Header({ user }: HeaderProps) {
         <ThemeToggle />
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notificări">
+        <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px]" aria-label="Notificări">
           <Bell className="h-5 w-5" />
           <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" aria-hidden="true" />
           <span className="sr-only">Ai notificări noi</span>
@@ -59,7 +59,7 @@ export function Header({ user }: HeaderProps) {
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-10 w-10 rounded-full" aria-label="Meniu utilizator">
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full min-h-[44px] min-w-[44px]" aria-label="Meniu utilizator">
               <Avatar className="h-10 w-10">
                 <AvatarImage src={user.image || undefined} alt={user.name || 'Avatar utilizator'} />
                 <AvatarFallback>{initials}</AvatarFallback>

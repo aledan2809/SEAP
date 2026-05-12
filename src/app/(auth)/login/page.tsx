@@ -109,7 +109,7 @@ function LoginForm() {
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full min-h-[44px]" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Conectare
           </Button>
@@ -128,7 +128,7 @@ function LoginForm() {
 
             <Button
               variant="outline"
-              className="w-full"
+              className="w-full min-h-[44px]"
               onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
               disabled={isLoading}
             >

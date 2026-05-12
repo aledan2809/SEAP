@@ -13,6 +13,7 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
+      className="min-h-[44px] min-w-[44px]"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       title={isDark ? 'Mod luminos' : 'Mod intunecat'}
       aria-label={isDark ? 'Comută la mod luminos' : 'Comută la mod întunecat'}

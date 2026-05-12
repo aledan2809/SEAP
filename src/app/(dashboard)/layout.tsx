@@ -19,7 +19,7 @@ export default async function DashboardLayout({
       <Sidebar />
       <div className="lg:ml-64 flex flex-col min-h-screen">
         <Header user={session.user} />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main id="main-content" className="flex-1 overflow-y-auto p-6">
           {children}
         </main>
       </div>

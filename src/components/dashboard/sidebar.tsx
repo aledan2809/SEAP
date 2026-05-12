@@ -49,7 +49,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors',
+                'flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors min-h-[44px] min-w-[44px]',
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -108,7 +108,7 @@ export function MobileSidebar() {
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Deschide meniu">
+        <Button variant="ghost" size="icon" className="lg:hidden min-h-[44px] min-w-[44px]" aria-label="Deschide meniu">
           <Menu className="h-6 w-6" aria-hidden="true" />
         </Button>
       </SheetTrigger>
