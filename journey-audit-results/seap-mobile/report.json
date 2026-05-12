@@ -1,0 +1,120 @@
+{
+  "project": "seap-mobile",
+  "baseUrl": "https://seap.knowbest.ro",
+  "configSource": "/tmp/seap-mobile-audit.json",
+  "timestamp": "2026-05-05T07:29:03.252Z",
+  "totals": {
+    "GATED": 3,
+    "OK": 6
+  },
+  "findings": [
+    {
+      "page": "Dashboard",
+      "href": "/dashboard",
+      "status": "GATED",
+      "httpStatus": 200,
+      "h1": "Bună ziua, Test Owner!",
+      "notes": [
+        "tables=0 buttons=5 bodyLen=905",
+        "emptyMarkers=1",
+        "ONBOARDING_WALL"
+      ],
+      "screenshot": "/Users/danciulescu/Projects/SEAP/journey-audit-results/seap-mobile/screenshots/dashboard.png"
+    },
+    {
+      "page": "Licitații",
+      "href": "/tenders",
+      "status": "OK",
+      "httpStatus": 200,
+      "h1": "Licitații",
+      "notes": [
+        "tables=1 buttons=8 bodyLen=19177"
+      ],
+      "screenshot": "/Users/danciulescu/Projects/SEAP/journey-audit-results/seap-mobile/screenshots/tenders.png"
+    },
+    {
+      "page": "Analiză AI",
+      "href": "/analysis",
+      "status": "OK",
+      "httpStatus": 200,
+      "h1": "Analiză AI",
+      "notes": [
+        "tables=0 buttons=5 bodyLen=975",
+        "emptyMarkers=1"
+      ],
+      "screenshot": "/Users/danciulescu/Projects/SEAP/journey-audit-results/seap-mobile/screenshots/analysis.png"
+    },
+    {
+      "page": "Documente",
+      "href": "/documents",
+      "status": "OK",
+      "httpStatus": 200,
+      "h1": "Documente",
+      "notes": [
+        "tables=0 buttons=7 bodyLen=507",
+        "emptyMarkers=1"
+      ],
+      "screenshot": "/Users/danciulescu/Projects/SEAP/journey-audit-results/seap-mobile/screenshots/documents.png"
+    },
+    {
+      "page": "Watchdog",
+      "href": "/watchdog",
+      "status": "GATED",
+      "httpStatus": 200,
+      "h1": "Watchdog",
+      "notes": [
+        "tables=0 buttons=9 bodyLen=648",
+        "emptyMarkers=1",
+        "ONBOARDING_WALL"
+      ],
+      "screenshot": "/Users/danciulescu/Projects/SEAP/journey-audit-results/seap-mobile/screenshots/watchdog.png"
+    },
+    {
+      "page": "Setări",
+      "href": "/settings",
+      "status": "GATED",
+      "httpStatus": 200,
+      "h1": "Setări",
+      "notes": [
+        "tables=0 buttons=9 bodyLen=248",
+        "ONBOARDING_WALL"
+      ],
+      "screenshot": "/Users/danciulescu/Projects/SEAP/journey-audit-results/seap-mobile/screenshots/settings.png"
+    },
+    {
+      "page": "Invitations",
+      "href": "/invitations",
+      "status": "OK",
+      "httpStatus": 200,
+      "h1": "Invitații",
+      "notes": [
+        "tables=0 buttons=6 bodyLen=199",
+        "emptyMarkers=1",
+        "empty_check_skipped (form_hero h1+buttons=6)"
+      ],
+      "screenshot": "/Users/danciulescu/Projects/SEAP/journey-audit-results/seap-mobile/screenshots/invitations.png"
+    },
+    {
+      "page": "Privacy",
+      "href": "/privacy",
+      "status": "OK",
+      "httpStatus": 200,
+      "h1": "Politica de Confidențialitate",
+      "notes": [
+        "tables=0 buttons=0 bodyLen=3125"
+      ],
+      "screenshot": "/Users/danciulescu/Projects/SEAP/journey-audit-results/seap-mobile/screenshots/privacy.png"
+    },
+    {
+      "page": "Terms",
+      "href": "/terms",
+      "status": "OK",
+      "httpStatus": 200,
+      "h1": "Termeni și Condiții",
+      "notes": [
+        "tables=0 buttons=0 bodyLen=3358"
+      ],
+      "screenshot": "/Users/danciulescu/Projects/SEAP/journey-audit-results/seap-mobile/screenshots/terms.png"
+    }
+  ]
+}

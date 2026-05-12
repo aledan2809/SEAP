@@ -1,7 +1,7 @@
 # AUDIT GAPS — SEAP Assistant
 > Source of truth pentru gap-uri deschise. Actualizat la fiecare sesiune.
 > Status: OPEN | ELIMINATED | PARTIAL | BLOCKED | WONTFIX
-> **Last Updated**: 2026-05-05 (sesiunea 2)
+> **Last Updated**: 2026-05-12 ([9] Full E2E Audit)
 
 ---
 
@@ -121,6 +121,42 @@
 
 ---
 
+### G-SEAP-013 — Security headers lipseau pe VPS (next.config.ts nedeployat)
+- **Status**: **ELIMINATED** — 2026-05-12 ([9] Full E2E Audit)
+- **Severitate**: P1 HIGH → rezolvat
+- **Context**: `next.config.ts` local conținea CSP + HSTS + X-Frame-Options + X-Content-Type-Options + Referrer-Policy + Permissions-Policy din sesiunile anterioare, dar VPS2 rula un build din config-ul vechi (fără headers). Security scanner a detectat corect absența lor pe prod.
+- **Fix**: `scp next.config.ts → VPS2:/var/www/seap/` + `npm run build` + copy standalone assets + `pm2 restart seap`.
+- **Verificat**: `curl -sI https://seap.knowbest.ro/login` confirmă toate 7 headers prezente ✅
+
+---
+
+### G-SEAP-014 — Touch targets sub 44px pe /, /login, /dashboard
+- **Status**: OPEN
+- **Severitate**: P2 MEDIUM (mobile-tester 75/100)
+- **Descoperit**: 2026-05-12 ([9] Full E2E Audit)
+- **Detalii**: 5/5 touch targets sub 44×44px pe /, /login, /dashboard pentru toate dispozitivele (iPhone 13, Pixel 5, iPad Pro 11). Butoane/linkuri nav fără `min-h-[44px]`.
+- **Plan**: Add `min-h-[44px]` to interactive elements in nav/sidebar + main CTAs. ~20min.
+
+---
+
+### G-SEAP-015 — Skip navigation link lipsă
+- **Status**: OPEN
+- **Severitate**: P3 LOW (a11y-scanner 65/100)
+- **Descoperit**: 2026-05-12 ([9] Full E2E Audit)
+- **Detalii**: Niciun `<a href="#main-content">` skip-nav în root layout. Afectează navigarea cu tastatură.
+- **Plan**: Add skip-nav link în `src/app/layout.tsx` + `id="main-content"` pe `<main>`. ~10min.
+
+---
+
+### G-SEAP-016 — Journey GATED: Dashboard, Watchdog, Settings (empty state)
+- **Status**: OPEN
+- **Severitate**: P3 LOW (journey-audit 3/9 GATED)
+- **Descoperit**: 2026-05-12 ([9] Full E2E Audit)
+- **Detalii**: Dashboard (bodyLen=985, emptyMarkers=1), Watchdog (bodyLen=962, emptyMarkers=1), Settings (bodyLen=328). Clasificate ca ONBOARDING_WALL. Sunt empty states legitime pentru user test fără date extensive — nu blocaje reale. Risc: real users cu conturi noi pot vedea aceste pagini goale fără ghidare clară.
+- **Plan**: Verifică screenshot-uri. Dacă UI e corect vizual cu empty state UI explicativ, adaugă `data-tester-action="cta"` pe buttonele cheie și mărește `bodyLenThreshold` în `.journey-audit.json`. ~15min.
+
+---
+
 ## WONTFIX / DOCUMENTED
 
 ### G-SEAP-W01 — Vercel Hobby plan limitări (OCR, CLI)
@@ -154,3 +190,7 @@
 | 2026-05-05 (s3) | H2 | PASS — cross-org tender access blocat la 404/403 (scoped via userOrganizations) |
 | 2026-05-05 (s3) | H3 | PASS — B5 switch via POST /api/organizations/[id], date izolate Org1/Org2 |
 | 2026-05-05 (s3) | I1 | PASS — 200 tenders în 6.6s, 0 erori, 0 duplicate seapId, 100% matchScore |
+| 2026-05-12 | G-SEAP-013 | **ELIMINATED** — scp next.config.ts → VPS2, rebuild, restart; 7 headers confirmed ✅ |
+| 2026-05-12 | G-SEAP-014 | OPEN — touch targets P2 (mobile-tester 75/100, 5/5 sub 44px pe /, /login, /dashboard) |
+| 2026-05-12 | G-SEAP-015 | OPEN — skip-nav P3 (a11y-scanner 65/100) |
+| 2026-05-12 | G-SEAP-016 | OPEN — journey 3/9 GATED (Dashboard/Watchdog/Settings empty state, P3 LOW) |
