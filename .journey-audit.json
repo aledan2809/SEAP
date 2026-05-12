@@ -26,6 +26,9 @@
   "onboardingMarkers": "Creează organizație|Configurează|Setup|Create.*org|first.*organization",
   "emptyStateMarkers": "Nu există|Nicio licitație|No tenders|empty|nu au fost găsite|Nu am găsit",
   "errorMarkers": "error|eroare|failed|eșuat|Internal Server",
+  "bodyLenThreshold": 800,
+  "validContentMarkers": ["data-tester-action"],
+  "formHeroException": true,
   "viewport": { "width": 1440, "height": 900 },
   "pageTimeout": 25000,
   "settleDelay": 2500

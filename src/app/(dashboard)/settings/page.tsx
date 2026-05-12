@@ -1,6 +1,8 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { prisma } from '@/lib/db';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/profile-settings';
 import { OrganizationSettings } from '@/components/settings/organization-settings';
@@ -59,11 +61,16 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Setări</h1>
-        <p className="text-muted-foreground mt-1">
-          Configurează profilul, organizația și preferințele de monitorizare
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Setări</h1>
+          <p className="text-muted-foreground mt-1">
+            Configurează profilul, organizația și preferințele de monitorizare
+          </p>
+        </div>
+        <Button asChild data-tester-action="cta">
+          <Link href="/tenders">Explorează Licitații</Link>
+        </Button>
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">

@@ -1,6 +1,8 @@
 import { auth } from '@/lib/auth';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Search,
   FileText,
@@ -186,6 +188,11 @@ export default async function DashboardPage() {
                 </p>
               </div>
             </div>
+          </div>
+          <div className="mt-6">
+            <Button asChild data-tester-action="cta">
+              <Link href="/settings">Configurează Acum</Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

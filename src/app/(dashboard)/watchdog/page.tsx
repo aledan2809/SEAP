@@ -171,7 +171,7 @@ export default async function WatchdogPage() {
               <p className="text-sm mt-2">
                 Adaugă licitații la watchdog pentru a primi notificări.
               </p>
-              <Button asChild className="mt-4">
+              <Button asChild className="mt-4" data-tester-action="cta">
                 <Link href="/tenders">Explorează Licitații</Link>
               </Button>
             </div>
