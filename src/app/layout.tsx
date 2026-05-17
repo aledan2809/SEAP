@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ClientToaster } from "@/components/client-toaster";
+import { SEAPConsentGate } from "@/components/consent/SEAPConsentGate";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,6 +36,7 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
           <ClientToaster />
+          <SEAPConsentGate />
         </ThemeProvider>
       </body>
     </html>

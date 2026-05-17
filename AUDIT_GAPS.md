@@ -1,7 +1,7 @@
 # AUDIT GAPS — SEAP Assistant
 > Source of truth pentru gap-uri deschise. Actualizat la fiecare sesiune.
 > Status: OPEN | ELIMINATED | PARTIAL | BLOCKED | WONTFIX
-> **Last Updated**: 2026-05-12 ([9] Full E2E Audit)
+> **Last Updated**: 2026-05-17 (ML2 Wave 3 [9] Full E2E Audit)
 
 ---
 
@@ -170,6 +170,24 @@
 
 ---
 
+### G-SEAP-018 — Legal Hub consent integration
+- **Status**: **ELIMINATED** — 2026-05-18
+- **Severitate**: P2 (GDPR consent tracking + DSR)
+- **Fix aplicat**:
+  - `src/app/api/legal/document/route.ts` — proxy GET document content from Legal Hub
+  - `src/app/api/legal/consent/status/route.ts` — proxy GET pending consent items (auth via `auth()`)
+  - `src/app/api/legal/consent/record/route.ts` — proxy POST consent record with HMAC signing
+  - `src/app/api/legal/dsr/route.ts` — proxy POST DSR (export/delete) requests
+  - `src/components/consent/SEAPConsentGate.tsx` — client-side gate (fetch-on-mount, 24h localStorage cache)
+  - `src/components/consent/SEAPConsentModal.tsx` — shadcn Dialog modal with scroll-to-read gate
+  - `src/app/layout.tsx` — `<SEAPConsentGate />` wired inside ThemeProvider
+  - `.env` — `LEGAL_API_URL`, `LEGAL_API_KEY` added; `LEGAL_HMAC_KEY` placeholder (configure when registered on Legal Hub)
+- **App slug**: `seap` | **Global user ID**: `seap:${session.user.id}` | **Entity**: Class RDA Impex SRL
+- **Verificat**: tsc clean (0 errors in production code)
+- **Pending**: `LEGAL_HMAC_KEY` — generate + register on Legal Hub side when first ConsentRecord needed from SEAP
+
+---
+
 ## WONTFIX / DOCUMENTED
 
 ### G-SEAP-W01 — Vercel Hobby plan limitări (OCR, CLI)
@@ -214,3 +232,6 @@
 | 2026-05-12 | G-SEAP-017 | **ELIMINATED** — `'use client'` prezent la linia 1; build local + VPS2 trec fără erori ✅ |
 | 2026-05-12 | G-SEAP-016 | **ELIMINATED** — commit `e7bcc3c`: `data-tester-action="cta"` pe Dashboard/Watchdog/Settings + `.journey-audit.json` actualizat ✅ |
 | 2026-05-12 | G-SEAP-004 | **ELIMINATED** — commit `e7bcc3c`: 3 teste integration adăugate (invite-flow, tender-lifecycle, multi-tenant-isolation) ✅ |
+| 2026-05-17 | ML2 Wave 3 [9] | **[7] CODE 83/100** — a11y-scanner 60 (false positive: skip-nav în layout.tsx există, G-SEAP-015 ELIMINATED), mobile-tester 75 (false positive: touch targets fixate în G-SEAP-014). Fără gaps noi. |
+| 2026-05-17 | ML2 Wave 3 [8] | **Journey 6 OK + 3 GATED** — Dashboard/Watchdog/Settings GATED structural (cont test nou, fără date, ONBOARDING_WALL; `data-tester-action` prezent dar bodyLen=1039 sub threshold Tester). Comportament așteptat. |
+| 2026-05-17 | Stale build | **Rebuilt + redeployed** — Build vechi din 2026-05-12 cauza `CredentialsSignin` failure silențios (chunk compilat stale). Fresh `npm run build` + copy standalone + PM2 restart → login funcțional confirmat via debug logs (adăugate + șterse în aceeași sesiune). VPS2 rulează build curat. |
