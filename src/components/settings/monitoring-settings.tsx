@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Loader2, Save, Search, X, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { IT_CPV_CODES, CPV_GROUPS } from '@/lib/seap/cpv-codes';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import type { CpvEntry } from '@/lib/seap/cpv-nomenclature';
 
 interface Organization {
   id: string;
@@ -41,6 +42,10 @@ export function MonitoringSettings({ organization }: MonitoringSettingsProps) {
     organization?.maxValue ? String(organization.maxValue) : ''
   );
   const [cpvSearch, setCpvSearch] = useState('');
+  const [customCpvInput, setCustomCpvInput] = useState('');
+  const [cpvSearchQuery, setCpvSearchQuery] = useState('');
+  const [cpvSearchResults, setCpvSearchResults] = useState<CpvEntry[]>([]);
+  const [cpvSearchLoading, setCpvSearchLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   if (!organization) {
@@ -106,6 +111,49 @@ export function MonitoringSettings({ organization }: MonitoringSettingsProps) {
 
   const removeKeyword = (keyword: string) => {
     setKeywords(keywords.filter((k) => k !== keyword));
+  };
+
+  const addCustomCpv = () => {
+    const code = customCpvInput.trim().toUpperCase();
+    if (!code) return;
+    if (!/^\d{8}-\d$/.test(code)) {
+      toast.error('Format invalid. Exemplu corect: 79823000-9');
+      return;
+    }
+    if (!selectedCpvCodes.includes(code)) {
+      setSelectedCpvCodes((prev) => [...prev, code]);
+    }
+    setCustomCpvInput('');
+  };
+
+  const searchCpvByDescription = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setCpvSearchResults([]);
+      return;
+    }
+    setCpvSearchLoading(true);
+    try {
+      const res = await fetch(`/api/cpv/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      setCpvSearchResults(data.results || []);
+    } catch {
+      setCpvSearchResults([]);
+    } finally {
+      setCpvSearchLoading(false);
+    }
+  }, []);
+
+  const handleCpvSearchInput = (value: string) => {
+    setCpvSearchQuery(value);
+    searchCpvByDescription(value);
+  };
+
+  const addCpvFromSearch = (entry: CpvEntry) => {
+    if (!selectedCpvCodes.includes(entry.code)) {
+      setSelectedCpvCodes((prev) => [...prev, entry.code]);
+    }
+    setCpvSearchQuery('');
+    setCpvSearchResults([]);
   };
 
   const selectCpvGroup = (groupCodes: readonly string[]) => {
@@ -235,7 +283,71 @@ export function MonitoringSettings({ organization }: MonitoringSettingsProps) {
               multiple
             />
             <p className="text-xs text-muted-foreground">
-              {selectedCpvCodes.length} coduri selectate din {cpvOptions.length} disponibile
+              {selectedCpvCodes.length} coduri selectate din {cpvOptions.length} disponibile IT
+            </p>
+          </div>
+
+          {/* CPV search by description */}
+          <div className="space-y-2">
+            <Label>Caută cod CPV după descriere (nomenclator complet EU):</Label>
+            <div className="relative">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Ex: tipărire, carduri, construcții, servicii juridice..."
+                    value={cpvSearchQuery}
+                    onChange={(e) => handleCpvSearchInput(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                {cpvSearchLoading && <Loader2 className="h-4 w-4 animate-spin self-center" />}
+              </div>
+              {cpvSearchResults.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow-md">
+                  <ul className="max-h-60 overflow-auto py-1">
+                    {cpvSearchResults.map((entry) => (
+                      <li
+                        key={entry.code}
+                        className="flex cursor-pointer items-start gap-3 px-3 py-2 hover:bg-accent"
+                        onClick={() => addCpvFromSearch(entry)}
+                      >
+                        <span className="mt-0.5 shrink-0 font-mono text-xs text-muted-foreground">
+                          {entry.code}
+                        </span>
+                        <span className="text-sm">{entry.description}</span>
+                        {selectedCpvCodes.includes(entry.code) && (
+                          <span className="ml-auto shrink-0 text-xs text-green-600">✓</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Caută în nomenclatorul complet CPV (~450+ categorii EU) — click pe rezultat pentru a-l adăuga
+            </p>
+          </div>
+
+          {/* Custom CPV input */}
+          <div className="space-y-2">
+            <Label>Adaugă orice cod CPV (ex: 79823000-9, 30237131-6):</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="XXXXXXXX-X"
+                value={customCpvInput}
+                onChange={(e) => setCustomCpvInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomCpv())}
+                className="max-w-48 font-mono"
+              />
+              <Button type="button" variant="outline" onClick={addCustomCpv}>
+                <Plus className="h-4 w-4 mr-1" />
+                Adaugă
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Pentru domenii non-IT (tipărire, carduri, construcții etc.) — orice cod valid SEAP
             </p>
           </div>
         </CardContent>
