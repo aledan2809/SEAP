@@ -77,10 +77,9 @@ export default async function TendersPage({ searchParams }: PageProps) {
   const tenders = await prisma.tender.findMany({
     where: whereClause,
     orderBy: [
-      { submissionDeadline: 'asc' },
       { createdAt: 'desc' },
     ],
-    take: 100,
+    take: 200,
   });
 
   // Get stats

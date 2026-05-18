@@ -13,7 +13,8 @@
 import { prisma } from '@/lib/db';
 import { Decimal } from '@prisma/client/runtime/library';
 
-const SEAP_API = 'https://e-licitatie.ro/api-pub/NoticeCommon/GetCANoticeList';
+const SEAP_API_CA = 'https://e-licitatie.ro/api-pub/NoticeCommon/GetCANoticeList';
+const SEAP_API_CN = 'https://e-licitatie.ro/api-pub/NoticeCommon/GetCNoticeList';
 
 export interface SeapTender {
   caNoticeId: number | string;
@@ -45,11 +46,11 @@ export interface ScanResult {
 }
 
 /**
- * Fetch recent tenders from SEAP (single fast request)
+ * Fetch from a SEAP API endpoint
  */
-async function fetchSeapTenders(pageSize = 100): Promise<SeapTender[]> {
+async function fetchFromEndpoint(url: string, pageSize: number): Promise<SeapTender[]> {
   try {
-    const response = await fetch(SEAP_API, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -62,16 +63,39 @@ async function fetchSeapTenders(pageSize = 100): Promise<SeapTender[]> {
     });
 
     if (!response.ok) {
-      console.error(`SEAP API error: ${response.status}`);
+      console.error(`SEAP API error ${url}: ${response.status}`);
       return [];
     }
 
     const data = await response.json();
     return Array.isArray(data.items) ? data.items : [];
   } catch (error) {
-    console.error('SEAP fetch error:', error);
+    console.error(`SEAP fetch error ${url}:`, error);
     return [];
   }
+}
+
+/**
+ * Fetch recent tenders from SEAP — both CA (awarded) and CN (open) endpoints
+ */
+async function fetchSeapTenders(pageSize = 500): Promise<SeapTender[]> {
+  const [caItems, cnItems] = await Promise.all([
+    fetchFromEndpoint(SEAP_API_CA, pageSize),
+    fetchFromEndpoint(SEAP_API_CN, pageSize),
+  ]);
+
+  // Deduplicate by caNoticeId
+  const seen = new Set<string>();
+  const all: SeapTender[] = [];
+  for (const item of [...caItems, ...cnItems]) {
+    const id = String(item.caNoticeId || item.noticeNo);
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      all.push(item);
+    }
+  }
+  console.log(`SEAP: ${caItems.length} CA + ${cnItems.length} CN = ${all.length} unique`);
+  return all;
 }
 
 /**
@@ -84,24 +108,28 @@ function extractCpvCode(cpvCodeAndName?: string): string {
 }
 
 /**
- * Extract CPV group (first 2 digits) for broad matching
+ * Extract CPV division (first 4 digits) for group matching
+ * 2-digit match is too broad (e.g. "30" = all office equipment)
+ * 4-digit match is the CPV "group" level — much more precise
  */
-function cpvGroup(code: string): string {
-  return code.substring(0, 2);
+function cpvDivision(code: string): string {
+  return code.substring(0, 4);
 }
 
 /**
  * Check if tender CPV matches any of the organization's CPV codes
- * Supports exact match AND group-level match (first 2 digits)
+ * Priority: exact match > 4-digit division match
+ * (2-digit group match removed — too broad, causes false positives)
  */
 function cpvMatches(tenderCpv: string, orgCpvCodes: string[]): boolean {
   if (orgCpvCodes.length === 0) return true; // No filter = match all
-  const tGroup = cpvGroup(tenderCpv);
+  const tDiv = cpvDivision(tenderCpv);
   return orgCpvCodes.some(orgCpv => {
     if (tenderCpv === orgCpv) return true;
-    // Group match: "72" matches "72000000-5"
-    if (orgCpv.length <= 2 && tGroup === orgCpv) return true;
-    if (cpvGroup(orgCpv) === tGroup) return true;
+    // Short code like "72" or "7223" — prefix match
+    if (orgCpv.length <= 4 && tenderCpv.startsWith(orgCpv)) return true;
+    // 4-digit division match (e.g. "7982" matches "79823000-9")
+    if (cpvDivision(orgCpv) === tDiv) return true;
     return false;
   });
 }
@@ -235,10 +263,10 @@ function calculateMatchScore(
 
   const tenderCpv = extractCpvCode(tender.cpvCodeAndName);
 
-  // Exact CPV match = +25, group match = +15
+  // Exact CPV match = +25, 4-digit division match = +15
   if (org.cpvCodes.includes(tenderCpv)) {
     score += 25;
-  } else if (org.cpvCodes.some(c => cpvGroup(c) === cpvGroup(tenderCpv))) {
+  } else if (org.cpvCodes.some(c => cpvDivision(c) === cpvDivision(tenderCpv))) {
     score += 15;
   }
 
