@@ -85,12 +85,14 @@ async function fetchSeapTenders(pageSize = 500): Promise<SeapTender[]> {
     fetchFromEndpoint(SEAP_API_CN, pageSize),
   ]);
 
-  // Deduplicate by caNoticeId
+  // Deduplicate by caNoticeId or noticeNo
   const seen = new Set<string>();
   const all: SeapTender[] = [];
   for (const item of [...caItems, ...cnItems]) {
-    const id = String(item.caNoticeId || item.noticeNo);
-    if (id && !seen.has(id)) {
+    const rawId = item.caNoticeId || item.noticeNo;
+    if (!rawId) continue;
+    const id = String(rawId);
+    if (!seen.has(id)) {
       seen.add(id);
       all.push(item);
     }
@@ -125,6 +127,7 @@ function cpvDivision(code: string): string {
  */
 function cpvMatches(tenderCpv: string, orgCpvCodes: string[]): boolean {
   if (orgCpvCodes.length === 0) return true; // No filter = match all
+  if (!tenderCpv) return false; // Tender has no CPV — cannot match any filter
   const tDiv = cpvDivision(tenderCpv);
   return orgCpvCodes.some(orgCpv => {
     if (tenderCpv === orgCpv) return true;
