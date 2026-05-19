@@ -169,9 +169,9 @@ export async function runFullScan(): Promise<ScanResult> {
       organizations.push(firstOrg);
     }
 
-    // 2. Single fast SEAP API call (most recent 200 tenders)
+    // 2. Single fast SEAP API call (most recent 1000 tenders)
     console.log(`Fetching latest tenders from SEAP...`);
-    const seapTenders = await fetchSeapTenders(200);
+    const seapTenders = await fetchSeapTenders(1000);
 
     if (seapTenders.length === 0) {
       result.errors.push('SEAP API nu a returnat rezultate');
