@@ -157,7 +157,7 @@ export async function runFullScan(): Promise<ScanResult> {
       // No orgs have CPV codes configured — use first org without filter
       // (cpvMatches with empty codes returns true = match all tenders)
       // Pushing ALL orgs would create duplicate tenders per org; use only first.
-      const firstOrg = await prisma.organization.findFirst();
+      const firstOrg = await prisma.organization.findFirst({ orderBy: { createdAt: 'asc' } });
       if (!firstOrg) {
         result.errors.push('Nu există organizații');
         return result;

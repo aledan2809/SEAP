@@ -65,6 +65,7 @@ async function executeScan(scanType: 'full' | 'quick', runDailyNotifications: bo
       type: scanType,
       tendersFound: result.tendersFound,
       tendersCreated: result.tendersCreated,
+      tendersSkipped: result.tendersSkipped,
       emailsSent:
         emailStats.opportunityReportsSent +
         emailStats.deadlinesSent +
@@ -76,7 +77,7 @@ async function executeScan(scanType: 'full' | 'quick', runDailyNotifications: bo
   return {
     ...result,
     emailStats,
-    message: `Scanare completă: ${result.tendersFound} găsite, ${result.tendersCreated} noi. Email: ${
+    message: `Scanare completă: ${result.tendersFound} găsite, ${result.tendersCreated} noi, ${result.tendersSkipped} existente. Email: ${
       emailStats.opportunityReportsSent + emailStats.deadlinesSent + emailStats.digestsSent
     } trimise.`,
   };

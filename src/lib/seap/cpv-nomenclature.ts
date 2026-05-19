@@ -640,6 +640,11 @@ function normalize(s: string): string {
     .replace(/[̀-ͯ]/g, '');
 }
 
+// Pre-computed at module load — zero cost per search call
+const NORMALIZED_DESCRIPTIONS = new Map(
+  CPV_NOMENCLATURE.map((e) => [e.code, normalize(e.description)])
+);
+
 /**
  * Caută coduri CPV după text (cod sau descriere)
  * Normalizează diacriticele: "tiparire" găsește "tipărire"
@@ -650,6 +655,6 @@ export function searchCpvNomenclature(query: string, limit = 20): CpvEntry[] {
   return CPV_NOMENCLATURE.filter(
     (entry) =>
       entry.code.includes(q) ||
-      normalize(entry.description).includes(q)
+      (NORMALIZED_DESCRIPTIONS.get(entry.code) ?? '').includes(q)
   ).slice(0, limit);
 }
