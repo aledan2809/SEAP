@@ -77,9 +77,23 @@ export default async function TendersPage({ searchParams }: PageProps) {
   const tenders = await prisma.tender.findMany({
     where: whereClause,
     orderBy: [
+      { submissionDeadline: { sort: 'asc', nulls: 'last' } },
       { createdAt: 'desc' },
     ],
     take: 200,
+  });
+
+  // Sort client-side: active deadlines first, then null/past deadlines by createdAt
+  tenders.sort((a, b) => {
+    const now = new Date();
+    const aFuture = a.submissionDeadline && a.submissionDeadline > now;
+    const bFuture = b.submissionDeadline && b.submissionDeadline > now;
+    if (aFuture && !bFuture) return -1;
+    if (!aFuture && bFuture) return 1;
+    if (aFuture && bFuture) {
+      return a.submissionDeadline!.getTime() - b.submissionDeadline!.getTime();
+    }
+    return b.createdAt.getTime() - a.createdAt.getTime();
   });
 
   // Get stats

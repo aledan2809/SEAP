@@ -126,10 +126,9 @@ function cpvMatches(tenderCpv: string, orgCpvCodes: string[]): boolean {
   const tDiv = cpvDivision(tenderCpv);
   return orgCpvCodes.some(orgCpv => {
     if (tenderCpv === orgCpv) return true;
-    // Short code like "72" or "7223" — prefix match
-    if (orgCpv.length <= 4 && tenderCpv.startsWith(orgCpv)) return true;
-    // 4-digit division match (e.g. "7982" matches "79823000-9")
-    if (cpvDivision(orgCpv) === tDiv) return true;
+    // Full 8-digit codes only get 4-digit division match (never prefix match)
+    // to avoid "30" short code matching all 30xxxxxx tenders
+    if (orgCpv.length >= 8 && cpvDivision(orgCpv) === tDiv) return true;
     return false;
   });
 }
