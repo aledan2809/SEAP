@@ -120,16 +120,17 @@ function cpvDivision(code: string): string {
 /**
  * Check if tender CPV matches any of the organization's CPV codes
  * Priority: exact match > 4-digit division match
- * (2-digit group match removed — too broad, causes false positives)
+ * Short codes (1-3 digits) are excluded — too broad (e.g. "30" = all office equipment).
+ * 4-digit division codes (e.g. "7220") are valid and supported.
  */
 function cpvMatches(tenderCpv: string, orgCpvCodes: string[]): boolean {
   if (orgCpvCodes.length === 0) return true; // No filter = match all
   const tDiv = cpvDivision(tenderCpv);
   return orgCpvCodes.some(orgCpv => {
     if (tenderCpv === orgCpv) return true;
-    // Full 8-digit codes only get 4-digit division match (never prefix match)
-    // to avoid "30" short code matching all 30xxxxxx tenders
-    if (orgCpv.length >= 8 && cpvDivision(orgCpv) === tDiv) return true;
+    // 4-digit division codes are the minimum precision allowed (CPV group level)
+    // Shorter codes (1-3 chars) are excluded — too broad
+    if (orgCpv.length >= 4 && cpvDivision(orgCpv) === tDiv) return true;
     return false;
   });
 }
@@ -177,10 +178,21 @@ export async function runFullScan(): Promise<ScanResult> {
     result.tendersFound = seapTenders.length;
     console.log(`Fetched ${seapTenders.length} tenders from SEAP`);
 
+    // Pre-fetch existing seapIds per org to avoid N+1 queries inside the loop
+    const existingByOrg = new Map<string, Set<string>>();
+    for (const org of organizations) {
+      const rows = await prisma.tender.findMany({
+        where: { organizationId: org.id },
+        select: { seapId: true },
+      });
+      existingByOrg.set(org.id, new Set(rows.map(r => r.seapId)));
+    }
+
     // 3. Process tenders — match to organizations
     for (const tender of seapTenders) {
-      const seapId = String(tender.caNoticeId || tender.noticeNo);
-      if (!seapId) continue;
+      const rawId = tender.caNoticeId || tender.noticeNo;
+      if (!rawId) continue;
+      const seapId = String(rawId);
 
       const tenderCpv = extractCpvCode(tender.cpvCodeAndName);
       const title = tender.contractTitle || tender.shortDescription || 'Fără titlu';
@@ -195,11 +207,8 @@ export async function runFullScan(): Promise<ScanResult> {
 
           if (!cpvMatch && !keywordMatch) continue;
 
-          // Skip if already exists
-          const existing = await prisma.tender.findFirst({
-            where: { seapId, organizationId: org.id },
-          });
-          if (existing) {
+          // Skip if already exists (O(1) lookup via pre-fetched set)
+          if (existingByOrg.get(org.id)?.has(seapId)) {
             result.tendersSkipped++;
             continue;
           }
@@ -219,7 +228,9 @@ export async function runFullScan(): Promise<ScanResult> {
           const created = await prisma.tender.create({
             data: {
               seapId,
-              seapUrl: `https://e-licitatie.ro/pub/notices/ca-notice/v2/view/${seapId}`,
+              seapUrl: tender.caNoticeId
+                ? `https://e-licitatie.ro/pub/notices/ca-notice/v2/view/${seapId}`
+                : `https://e-licitatie.ro/pub/notices/c-notice/v2/view/${seapId}`,
               title,
               description: tender.shortDescription || title,
               contractingAuth: tender.contractingAuthorityNameAndFN || 'Necunoscut',
@@ -241,6 +252,7 @@ export async function runFullScan(): Promise<ScanResult> {
 
           result.createdTenderIds.push(created.id);
           result.tendersCreated++;
+          existingByOrg.get(org.id)?.add(seapId);
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);
           // Skip duplicate key errors silently
@@ -268,10 +280,10 @@ function calculateMatchScore(
 
   const tenderCpv = extractCpvCode(tender.cpvCodeAndName);
 
-  // Exact CPV match = +25, 4-digit division match = +15
+  // Exact CPV match = +25, 4-digit division match = +15 (mirrors cpvMatches guard)
   if (org.cpvCodes.includes(tenderCpv)) {
     score += 25;
-  } else if (org.cpvCodes.some(c => cpvDivision(c) === cpvDivision(tenderCpv))) {
+  } else if (org.cpvCodes.some(c => c.length >= 4 && cpvDivision(c) === cpvDivision(tenderCpv))) {
     score += 15;
   }
 
