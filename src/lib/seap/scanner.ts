@@ -282,6 +282,7 @@ function calculateMatchScore(
   let score = 50;
 
   const tenderCpv = extractCpvCode(tender.cpvCodeAndName);
+  if (!tenderCpv) return score; // no CPV to score on
 
   // Exact CPV match = +25, 4-digit division match = +15 (mirrors cpvMatches guard)
   if (org.cpvCodes.includes(tenderCpv)) {
