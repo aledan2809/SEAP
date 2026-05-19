@@ -41,6 +41,7 @@ export interface ScanResult {
   success: boolean;
   tendersFound: number;
   tendersCreated: number;
+  tendersSkipped: number;
   createdTenderIds: string[];
   errors: string[];
 }
@@ -141,6 +142,7 @@ export async function runFullScan(): Promise<ScanResult> {
     success: true,
     tendersFound: 0,
     tendersCreated: 0,
+    tendersSkipped: 0,
     createdTenderIds: [],
     errors: [],
   };
@@ -152,14 +154,15 @@ export async function runFullScan(): Promise<ScanResult> {
     });
 
     if (organizations.length === 0) {
-      // If no orgs have CPV codes, fetch for ALL orgs (show everything)
-      const allOrgs = await prisma.organization.findMany();
-      if (allOrgs.length === 0) {
+      // No orgs have CPV codes configured — use first org without filter
+      // (cpvMatches with empty codes returns true = match all tenders)
+      // Pushing ALL orgs would create duplicate tenders per org; use only first.
+      const firstOrg = await prisma.organization.findFirst();
+      if (!firstOrg) {
         result.errors.push('Nu există organizații');
         return result;
       }
-      // Use first org as target
-      organizations.push(...allOrgs);
+      organizations.push(firstOrg);
     }
 
     // 2. Single fast SEAP API call (most recent 200 tenders)
@@ -196,7 +199,10 @@ export async function runFullScan(): Promise<ScanResult> {
           const existing = await prisma.tender.findFirst({
             where: { seapId, organizationId: org.id },
           });
-          if (existing) continue;
+          if (existing) {
+            result.tendersSkipped++;
+            continue;
+          }
 
           // Calculate match score
           const matchScore = calculateMatchScore(tender, org);
@@ -217,7 +223,7 @@ export async function runFullScan(): Promise<ScanResult> {
               title,
               description: tender.shortDescription || title,
               contractingAuth: tender.contractingAuthorityNameAndFN || 'Necunoscut',
-              contractingAuthCui: tender.contractingAuthorityNameAndFN?.match(/^(\d+)/)?.[1] || null,
+              contractingAuthCui: tender.contractingAuthorityCUI || tender.contractingAuthorityNameAndFN?.match(/^(\d+)/)?.[1] || null,
               estimatedValue: tender.ronContractValue ? new Decimal(tender.ronContractValue) : null,
               currency: tender.currencyCode || 'RON',
               cpvCode: tenderCpv,

@@ -633,15 +633,23 @@ export const CPV_NOMENCLATURE: CpvEntry[] = [
   { code: '98395000-8', description: 'Servicii de lăcătușerie' },
 ];
 
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
 /**
  * Caută coduri CPV după text (cod sau descriere)
+ * Normalizează diacriticele: "tiparire" găsește "tipărire"
  */
 export function searchCpvNomenclature(query: string, limit = 20): CpvEntry[] {
   if (!query || query.length < 2) return [];
-  const q = query.toLowerCase().trim();
+  const q = normalize(query.trim());
   return CPV_NOMENCLATURE.filter(
     (entry) =>
       entry.code.includes(q) ||
-      entry.description.toLowerCase().includes(q)
+      normalize(entry.description).includes(q)
   ).slice(0, limit);
 }
