@@ -19,6 +19,22 @@
 >   MEMBER (Echipă absent ✓, Membru ✓) + „Pas următor" pe detaliu tender ✓.
 > Raport audit + mockup: `Reports/pa-ux-audit-2026-07-07/audit.html`.
 
+## [x] 🔌 SCANNER MORT DIN 19 MAI — cron-urile Vercel nu fuseseră recreate pe VPS2 — FIXED 2026-07-07
+
+> **Descoperit** la verificarea conectivității e-licitatie.ro (cerere user 2026-07-07). API-ul SEAP era
+> perfect accesibil de pe VPS2 (ambele endpoint-uri, GetCANoticeList + GetCNoticeList, 200 cu date reale),
+> dar **ultima licitație intrată în DB era din 2026-05-19** — scannerul nu mai rulase de ~7 săptămâni.
+> **Cauza**: cron-urile din `vercel.json` (scan 7AM + deadline-check 9AM) au murit la retragerea de pe
+> Vercel (VVPS); nimeni nu le-a recreat pe VPS2.
+> **Fix 2026-07-07**: (1) scan manual declanșat cu CRON_SECRET → **2000 găsite, 938 create, 8 email-uri
+> de oportunitate trimise, 0 erori, 8.5s** — conexiunea end-to-end confirmată; (2) ambele cron-uri
+> instalate în crontab-ul VPS2 (log: `/var/log/seap-cron.log`), același program ca pe Vercel;
+> (3) dashboard-ul (nou implementat pe date reale) confirmă: 1441 monitorizate, +418 noi în 24h.
+> **Igienă rămasă (minor)**: `CRON_SECRET` e slab (`seap-cron-secret-2026`) — de rotit la o sesiune
+> viitoare (necesită update .env + crontab + pm2 restart, coordonat).
+> **Lecție**: la orice migrare de pe Vercel, inventariază `vercel.json crons` și recrează-le pe țintă —
+> de verificat și celelalte proiecte VVPS-migrate.
+
 > **Origine**: audit /pa persona-walk 2026-07-07 (walk live pe prod cu cont test proaspăt `seap-pa-walk@test.local`,
 > toate 7 paginile; structura nav + gating pe rol citite din cod; paritate roluri deja dovedită de True E2E G1/G2).
 > Raport + mockup acum-vs-propunere: `Reports/pa-ux-audit-2026-07-07/audit.html`
