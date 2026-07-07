@@ -4,15 +4,20 @@
 
 ---
 
-## [~] 🧭 UX PROACTIV pe roluri — „dashboard viu + flux pas-cu-pas" (audit /pa 2026-07-07; COD DONE 2026-07-07, deploy gated)
+## [x] 🧭 UX PROACTIV pe roluri — „dashboard viu + flux pas-cu-pas" — DONE 2026-07-07 (commit `597deb4`, LIVE pe seap.knowbest.ro)
 
-> **STATUS 2026-07-07 (aceeași zi)**: Feliile A-F implementate + verificate live pe dev local (login real
-> owner + member, dashboard cu 1023 licitații reale, checklist 3/4 cu stare din DB, Echipă vizibilă doar
-> OWNER/ADMIN, rol în footer, „Pas următor" pe detaliu, seed script validat). tsc 0. /review: 1 bug real
-> fixat (coliziune chei React în Alerte la tender simultan deadline+GO) + fail-soft pe badge-urile din layout
-> (eroare DB tranzitorie nu mai doboară shell-ul — dovedit pe un P1001 Neon real în timpul verificării).
-> **RĂMAS**: deploy pe seap.knowbest.ro (rsync flow) + rulare `scripts/seed-test-accounts.ts` pe DB-ul VPS2
-> + re-walk persona pe prod — TOATE doar cu ok explicit user.
+> **ÎNCHIS 2026-07-07**: Feliile A-F implementate, review-uite, deployate și verificate pe PROD (ok explicit user).
+> - **Dev + verify local**: login real owner+member pe dev, dashboard cu date reale, checklist 3/4 din DB,
+>   Echipă doar OWNER/ADMIN, rol în footer, „Pas următor" pe detaliu. tsc 0.
+> - **/review**: 1 bug real fixat (coliziune chei React în Alerte la tender simultan deadline+GO) + fail-soft
+>   pe badge-urile din layout (eroare DB tranzitorie nu mai doboară shell-ul — dovedit pe un P1001 real).
+> - **Deploy 2026-07-07**: rsync 7 fișiere (checksums verificate) + build VPS2 + standalone copy + pm2 restart.
+>   Notă: build-ul a coincis cu un restart general al daemon-ului PM2 (toate procesele online, 0 unstable);
+>   L41 spot-check vecini VPS2: blocx/contakt/etutor/procuchain/legal toate OK.
+> - **Seed prod**: `scripts/seed-test-accounts.ts` rulat pe VPS2 — cele 5 conturi test re-autentificabile (Test123!).
+> - **Re-walk persona pe PROD**: OWNER (Primii Pași 3/4 real, Echipă ✓, Proprietar ✓, stats live 1023) +
+>   MEMBER (Echipă absent ✓, Membru ✓) + „Pas următor" pe detaliu tender ✓.
+> Raport audit + mockup: `Reports/pa-ux-audit-2026-07-07/audit.html`.
 
 > **Origine**: audit /pa persona-walk 2026-07-07 (walk live pe prod cu cont test proaspăt `seap-pa-walk@test.local`,
 > toate 7 paginile; structura nav + gating pe rol citite din cod; paritate roluri deja dovedită de True E2E G1/G2).
