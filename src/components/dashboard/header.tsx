@@ -23,9 +23,10 @@ interface HeaderProps {
     name?: string | null;
     image?: string | null;
   };
+  showTeam?: boolean;
 }
 
-export function Header({ user }: HeaderProps) {
+export function Header({ user, showTeam }: HeaderProps) {
   const initials = user.name
     ? user.name
         .split(' ')
@@ -38,7 +39,7 @@ export function Header({ user }: HeaderProps) {
     <header className="h-16 border-b bg-card flex items-center justify-between px-4 lg:px-6">
       <div className="flex items-center gap-4">
         {/* Mobile menu button */}
-        <MobileSidebar />
+        <MobileSidebar showTeam={showTeam} />
 
         {/* Mobile logo - shown only on small screens */}
         <div className="lg:hidden flex items-center">

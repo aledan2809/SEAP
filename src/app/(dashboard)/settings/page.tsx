@@ -10,12 +10,22 @@ import { MonitoringSettings } from '@/components/settings/monitoring-settings';
 import { AdminSettings } from '@/components/settings/admin-settings';
 import { isAdmin } from '@/lib/settings';
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const session = await auth();
 
   if (!session?.user) {
     redirect('/login');
   }
+
+  // Deep-linkable tabs (?tab=organization|monitoring) — used by the dashboard setup guide.
+  const { tab } = await searchParams;
+  // 'admin' is intentionally not deep-linkable — its trigger only renders for platform admins.
+  const validTabs = ['profile', 'organization', 'monitoring'];
+  const initialTab = tab && validTabs.includes(tab) ? tab : 'profile';
 
   // Fetch user with organizations (many-to-many)
   const user = await prisma.user.findUnique({
@@ -73,7 +83,7 @@ export default async function SettingsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
+      <Tabs defaultValue={initialTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="profile">Profil</TabsTrigger>
           <TabsTrigger value="organization">Organizație</TabsTrigger>

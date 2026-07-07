@@ -4,6 +4,70 @@
 
 ---
 
+## [~] 🧭 UX PROACTIV pe roluri — „dashboard viu + flux pas-cu-pas" (audit /pa 2026-07-07; COD DONE 2026-07-07, deploy gated)
+
+> **STATUS 2026-07-07 (aceeași zi)**: Feliile A-F implementate + verificate live pe dev local (login real
+> owner + member, dashboard cu 1023 licitații reale, checklist 3/4 cu stare din DB, Echipă vizibilă doar
+> OWNER/ADMIN, rol în footer, „Pas următor" pe detaliu, seed script validat). tsc 0. /review: 1 bug real
+> fixat (coliziune chei React în Alerte la tender simultan deadline+GO) + fail-soft pe badge-urile din layout
+> (eroare DB tranzitorie nu mai doboară shell-ul — dovedit pe un P1001 Neon real în timpul verificării).
+> **RĂMAS**: deploy pe seap.knowbest.ro (rsync flow) + rulare `scripts/seed-test-accounts.ts` pe DB-ul VPS2
+> + re-walk persona pe prod — TOATE doar cu ok explicit user.
+
+> **Origine**: audit /pa persona-walk 2026-07-07 (walk live pe prod cu cont test proaspăt `seap-pa-walk@test.local`,
+> toate 7 paginile; structura nav + gating pe rol citite din cod; paritate roluri deja dovedită de True E2E G1/G2).
+> Raport + mockup acum-vs-propunere: `Reports/pa-ux-audit-2026-07-07/audit.html`
+> (artifact: https://claude.ai/code/artifact/1a7928c7-6017-45e3-a555-e91649e14d47).
+> **Directiva user (verbatim)**: „Ideea de bază este ca aplicația să fie proactivă și să te ducă într-un flux normal,
+> pas cu pas, chiar dacă sunt roluri de user separați. În interiorul oricărui rol, userul să vadă intuitiv absolut
+> tot ce are nevoie, fără să apeleze la meniu sau la call center. Asigură-te că nu pierzi din funcționalități,
+> doar îmbunătățești."
+> **Garanție**: ZERO funcționalități eliminate — doar conectare la date reale + reorganizare prezentare.
+
+### Felia A — Dashboard conectat la date reale (CRITIC, cel mai valoros)
+- `src/app/(dashboard)/dashboard/page.tsx:19` are literal `// TODO: Fetch real data from database` —
+  toate cele 4 statistici hardcodate 0, cardurile „Licitații Noi"/„Alerte" goale STATIC, deși prod are 3.300+ tenders.
+- Înlocuiește obiectul `stats` cu query-uri Prisma per org activă (count tenders per status, deadline <7 zile,
+  won anul curent, noi în 24h) — pattern-urile de query există deja pe `/tenders` și `/watchdog`.
+- „Licitații Noi" = ultimele N cu matchScore desc + link detaliu; „Alerte" = deadline-uri <3 zile + analize GO neacționate.
+
+### Felia B — „Primii Pași" cu stare reală + link per pas
+- Azi: 4 pași text static, fără progres, fără link per pas (un singur CTA generic → /settings), afișat pe veci.
+- Nou: 4 verificări din DB (are organizație? are CPV configurate? are ≥1 CompanyDocument? are notificări active?)
+  → bifă per pas + link direct per pas (/settings tab organizație, /settings tab monitorizare, /documents, /watchdog).
+- La 4/4 cardul dispare complet → locul lui e luat de coada de lucru zilnică („Ce ai de făcut azi": revizuiește N noi,
+  M deadline-uri aproape, K analize de rulat). Pattern validat deja în Contakt (action-center rule-based, zero AI).
+
+### Felia C — „Echipă" în sidebar + badge-uri numerice
+- `/invitations` e PAGINĂ ORFANĂ — funcțională (E6 PASS) dar absentă din `sidebar.tsx:27-34` (array static 6 iteme).
+  Adaugă „Echipă" în navigation; MEMBER o vede read-only (lista membrilor, buton invitație disabled cu tooltip).
+- Badge-uri pe iteme: Licitații (noi de revizuit), Analiză AI (de rulat), Watchdog (deadline-uri <7z) — API-uri existente.
+
+### Felia D — Identitate de rol + acțiuni disabled elegant (zero schimbări API)
+- Footer sidebar: nume + rol tradus (Proprietar/Administrator/Membru) + organizația activă (din sesiune).
+- Acțiunile pe care rolul curent NU le poate face (MEMBER: invite, upload documente firmă) se randează
+  disabled + tooltip „doar Proprietar/Administrator" ÎN LOC de 403 după click. API-ul rămâne sursa de adevăr.
+
+### Felia E — Pas următor ghidat pe detaliul licitației
+- `TenderStatusSelect` (dropdown mut) rămâne; LÂNGĂ el, sugestie contextuală: NEW → „Rulează analiza AI";
+  analiză GO → „Marchează În Pregătire"; PREPARING → „Verifică documentele"; deadline <3 zile → avertisment vizibil.
+  Lifecycle-ul E5 există complet — doar îl facem vizibil ca flux.
+
+### Felia F — igienă
+- Re-seed conturi test prod: `seap-test-*@test.local` dau CredentialsSignin (audit 2026-07-07) — re-rulează seed-ul
+  pe DB-ul VPS2 pentru audituri viitoare. (Cont nou funcțional creat la audit: `seap-pa-walk@test.local` / `Test123!pa`.)
+- F0 strategie: adaugă în `STRATEGY.md` principiul de produs „Proactive step-by-step UX per rol" — azi nu apare
+  nicăieri (gol de strategie, nu doar de cod).
+- Curăță duplicatele secțiunii „Introspection Audit" din acest fișier (apare de 3×).
+
+### Criterii acceptare
+- Persona-walk re-rulat (OWNER nou + MEMBER în org activă): dashboard arată cifre reale; checklist-ul se bifează
+  la fiecare pas făcut și dispare la 4/4; „Echipă" vizibilă în meniu; MEMBER nu mai primește 403-uri surpriză.
+- tsc 0 · build OK · zero regresie pe paginile existente (toate coloanele/acțiunile din /tenders rămân) ·
+  deploy DOAR cu ok explicit user (rsync flow per DEVELOPMENT_STATUS — git pull nu merge pe VPS).
+
+---
+
 ## 🎯 TRUE FULL E2E — SEAP multi-role business workflows
 
 **SEAP Assistant**: Multi-tenant SaaS pentru monitorizarea licitațiilor publice românești.
@@ -195,3 +259,25 @@ Config file: `.journey-audit.json` ✅ (existent, configurat corect)
 | 2026-05-05 (s2) | Sesiunea 2 — D-Infrastructure + G1-G4 | **G-SEAP-003**: OAuth server flow CORECT (POST+CSRF → accounts.google.com redirect ✅). **D1-D4 DONE**: scan live (200/100), Neon 83 tenders, R2 configured, email 4 trimise. **G1-G4 DONE**: G1(6OK/3GATED)+G2(parity)+G3(mobile 0 overlap)+G4(axe-core: login clean, tenders 1 critical+2 serious, privacy 2 serious). Gap nou: G-SEAP-010 (a11y WCAG2AA). |
 | 2026-05-05 (s3) | Sesiunea 3 — E11-E12-F1-F3-H2-H3-I1 | **G-SEAP-010 ELIMINATED** (commit `3ea5b5e`: sidebar aria-label, tenders orange-700, privacy underline+blue-700). **E11 PARTIAL** (NO_GO setat manual; filtrul default include IGNORED — G-SEAP-011 OPEN). **E12 PASS** (audit-logs 200 OWNER/ADMIN, 403 MEMBER). **F1-F3 PASS** (seapId UNIQUE, last-write-wins, Org2 izolat CPV 90000000). **H2 PASS** (cross-org 404/403 confirmat în cod). **H3 PASS** (B5 switch via POST /api/organizations/[id], 101+18 tenders izolate). **I1 PASS** (200 tenders în 6.6s, 0 erori, 0 duplicate, 100% matchScore). Gaps noi: G-SEAP-011 (deadline dedup), G-SEAP-012 (CompanyDocument upload API). Blocante rămase: E4/E9/E13/H1/I2. |
 | 2026-05-05 (s3 cont) | Sesiunea 3 continuare — G-SEAP-011 + G-SEAP-012 | **G-SEAP-011 ELIMINATED** (commit `5538ab5`): AuditLog-based same-day dedup în `sendDeadlineAlerts()`; Run1 sent:2, Run2 sent:0 ✅. **G-SEAP-012 ELIMINATED**: `POST /api/organizations/[id]/documents` creat — multipart, R2 storage, expiresAt; upload→201, list→200, MEMBER→403 ✅. **E7 → [x] DONE, E10 → [x] DONE**. Blocante rămase: E4/E9/E13/H1/I2 (externe/manual). |
+
+## 🔍 Introspection Audit 2026-06-20
+> Audit complet (gap strategie↔cod · ghid per-pagină · deep research · funcțional + cyber).
+> **Scor AIWebAuditor: 62/100** · GDPR 10. 4 acțiuni deschise · fără critice.
+> Rapoarte: `Reports/INTROSPECTION-2026-06-20/` (00-SUMMARY.md, 01-gap-strategy-vs-code.md, 02-pages-guide-RO.md, 03-deep-research-optimization.md, 04-audit-findings.md, 04b-security-audit.md)
+> Checklist Alex centralizat: `Master/reports/Alex_TODO_2026-06-20.md` + tab „Introspection Audit" în UI Master.
+
+## SEAP (`seap.knowbest.ro`) — ACTIVE (fix-urile așteaptă review)
+Sursă: `SEAP/Reports/INTROSPECTION-2026-06-20/`
+
+- [ ] 🔑 **Google OAuth** — înregistrează `https://seap.knowbest.ro/api/auth/callback/google` redirect URI + origin în Google Cloud Console (provider activ dar dă `redirect_uri_mismatch` fără asta).
+  - 🗣️ *Pe înțelesul tău:* Butonul „Login cu Google" dă eroare pentru că adresa site-ului nu e trecută în consola Google. După ce o adaugi, login-ul cu Google merge (cel cu email/parolă merge oricum).
+- [ ] 🟡 **Dependențe** — update țintit (PostCSS XSS + 6 altele, 0 critice; NU `--force`).
+  - 🗣️ *Pe înțelesul tău:* Câteva biblioteci de actualizat, niciuna critică. Le urc țintit, fără să forțez, ca să rămână totul funcțional.
+- [ ] 🟡 **GDPR landing** (scor 10, parțial fals-negativ — GA detectat de scanner dar absent în cod → vezi nota cross-cutting GA-edge) + confirmă sursa GA.
+  - 🗣️ *Pe înțelesul tău:* Scorul mic e parțial alarmă falsă (aplicația logată e deja conformă), dar pe pagina publică lipsește bannerul de cookie. Confirmă de unde vine urmărirea (nu e în cod) și o punem la punct.
+- [ ] 🟢 (opțional) compare timing-safe pe secret webhook.
+  - 🗣️ *Pe înțelesul tău:* O întărire fină a verificării unei chei interne, opțională. Reduce un risc teoretic; nu e urgentă.
+- _Solid: 0 SQLi, rute mutante session-guarded, admin requireAdmin, CSRF fail-closed, CSP strict, integrare Legal Hub reală._
+- _💡 Strategic (din 01): „bid-dossier generator" — patronul deja face manual dosare pentru contracte 10M+ RON; cea mai mare oportunitate de produs._
+
+---

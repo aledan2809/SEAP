@@ -1,8 +1,25 @@
 # Strategy — SEAP
-Last Updated: 2026-03-28
+Last Updated: 2026-07-07
 
 ## Vision
 Become the leading automated monitoring platform for Romanian government IT tenders, helping companies win more public contracts through intelligent AI-powered analysis and never miss relevant opportunities.
+
+## Product Principles
+
+### Proactive step-by-step UX, per role
+The app must proactively guide every user through a normal flow, step by step — never
+leaving them to discover the process through menus or support. Concretely:
+- **The dashboard is a live cockpit, not a brochure**: every number reflects real DB
+  state; the setup guide tracks per-step completion and disappears when done, replaced
+  by a daily work queue ("what to do today").
+- **Every role sees intuitively everything it needs**: navigation mirrors API
+  permissions (no menu items that dead-end in 403), the signed-in role and active
+  organization are always visible, and actions reserved for another role are shown
+  disabled with an explanation rather than failing after the click.
+- **The tender lifecycle is a visible flow**: at every status, the UI suggests the
+  natural next step (NEW → run AI analysis; GO → prepare; PREPARING → submit; …).
+- Codified from the /pa persona-walk audit 2026-07-07
+  (`Reports/pa-ux-audit-2026-07-07/audit.html`).
 
 ## Scope
 

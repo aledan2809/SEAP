@@ -19,6 +19,7 @@ import {
   CheckCircle,
   XCircle,
   Download,
+  Lightbulb,
 } from 'lucide-react';
 import { TenderStatusSelect } from '@/components/tenders/tender-status-select';
 import { TenderTimeline } from '@/components/tenders/tender-timeline';
@@ -91,6 +92,55 @@ export default async function TenderDetailPage({ params }: PageProps) {
       )
     : null;
 
+  // Guided next step — makes the status lifecycle visible as a flow instead of
+  // a mute dropdown. Derived from status + AI recommendation; purely advisory.
+  const recommendation = tender.analysis?.recommendation;
+  let nextStep: { text: string; href?: string; cta?: string } | null = null;
+  if (tender.status === 'NEW') {
+    if (!tender.analysis || recommendation === 'PENDING') {
+      nextStep = {
+        text: 'Rulează analiza AI ca să primești recomandarea GO / CAUTION / NO-GO.',
+        href: '#ai-analysis',
+        cta: 'Mergi la analiză',
+      };
+    } else if (recommendation === 'GO') {
+      nextStep = {
+        text: 'Analiza recomandă GO — marchează „În Analiză" și începe evaluarea cu echipa.',
+      };
+    } else if (recommendation === 'CAUTION') {
+      nextStep = {
+        text: 'Analiza recomandă prudență — citește punctele slabe din analiză înainte de a decide.',
+        href: '#ai-analysis',
+        cta: 'Vezi analiza',
+      };
+    } else if (recommendation === 'NO_GO') {
+      nextStep = {
+        text: 'Analiza recomandă NO-GO — dacă ești de acord, marchează licitația „Ignorat".',
+      };
+    }
+  } else if (tender.status === 'REVIEWING') {
+    nextStep =
+      !tender.analysis || recommendation === 'PENDING'
+        ? {
+            text: 'Rulează analiza AI ca să susții decizia GO / NO-GO.',
+            href: '#ai-analysis',
+            cta: 'Mergi la analiză',
+          }
+        : {
+            text: 'Decizie luată? Treci licitația „În Pregătire" și începe dosarul ofertei.',
+          };
+  } else if (tender.status === 'PREPARING') {
+    nextStep = {
+      text: 'Pregătește documentele dosarului; când depui oferta, marchează „Depusă".',
+      href: '/documents',
+      cta: 'Documente firmă',
+    };
+  } else if (tender.status === 'SUBMITTED') {
+    nextStep = {
+      text: 'Ofertă depusă — după publicarea rezultatului, marchează „Câștigată" sau „Pierdută".',
+    };
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -146,6 +196,21 @@ export default async function TenderDetailPage({ params }: PageProps) {
           </Button>
         </div>
       </div>
+
+      {/* Guided next step */}
+      {nextStep && (
+        <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <Lightbulb className="h-5 w-5 text-blue-600 shrink-0" aria-hidden="true" />
+          <span className="text-sm text-blue-900 flex-1">
+            <span className="font-semibold">Pas următor:</span> {nextStep.text}
+          </span>
+          {nextStep.href && (
+            <Button variant="outline" size="sm" asChild className="shrink-0">
+              <a href={nextStep.href}>{nextStep.cta}</a>
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Deadline Alert */}
       {daysUntilDeadline !== null && daysUntilDeadline <= 7 && daysUntilDeadline > 0 && (
@@ -292,7 +357,9 @@ export default async function TenderDetailPage({ params }: PageProps) {
           </Card>
 
           {/* AI Analysis */}
-          <TenderAnalysis analysis={tender.analysis} tenderId={tender.id} />
+          <div id="ai-analysis" className="scroll-mt-20">
+            <TenderAnalysis analysis={tender.analysis} tenderId={tender.id} />
+          </div>
 
           {/* Documents */}
           <Card>
