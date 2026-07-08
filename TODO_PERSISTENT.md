@@ -264,10 +264,21 @@ Config file: `.journey-audit.json` ✅ (existent, configurat corect)
   - Verify: matchScore calculat corect pentru fiecare ✅ (102 Org1 tenders, 0 null matchScore)
   - seapId UNIQUE constraint: 0 duplicate ✅
 
-- [ ] **I2 — Audit log completeness**
-  - Rulează toate scenariile E1-E13 + F1-F3
-  - Verify: fiecare acțiune sensibilă are entry în AuditLog
-  - Verify: nu există "orphan" actions fără log
+- [x] **I2 — Audit log completeness** — DONE 2026-07-08 (commit `6cae134`, LIVE + verificat pe prod)
+  - Sweep cod complet: 14 acțiuni sensibile × call-site `logAction`. **12 deja acoperite** (login via NextAuth
+    signIn event, register, org create/update/switch, invite send/accept, tender status/PDF, analysis, doc upload,
+    scan complete, settings update).
+  - **2 goluri reale găsite + reparate**:
+    - `MONITORING_UPDATE` — PATCH monitorizare (CPV/keywords/praguri valoare — controlează ce licitații fac match)
+      nu loga; constanta exista dar era nefolosită. Wired.
+    - `ORG_INVITE_REVOKE` (constantă nouă) — revocarea unei invitații (DELETE) nu loga, deși invite-create loga. Wired.
+  - **Non-goluri** (constante forward-declared pt feature-uri fără mutații): `TENDER_VIEW` (intenționat, prea zgomotos),
+    `DOC_DELETE`/`DOC_OCR` (nu există rută de ștergere company-document), `WATCHDOG_*` (fără rute de mutație watchdog).
+  - **Verificat pe PROD end-to-end**: trigger monitoring PATCH + invite create→revoke → ambele apar în
+    `GET /api/admin/audit-logs` (`monitoring.update` + `organization.invite.revoke` + `organization.invite`).
+  - 🔎 **Finding colateral (datorie tehnică, non-blocker)**: `npx tsc --noEmit` are **41 erori pre-existente în
+    `src/__tests__/**`** (mock typing `any not assignable to never`) — confirmat identice pe HEAD curat, nu blochează
+    `next build` (care exclude testele). De curățat la o sesiune de test-hygiene.
 
 ---
 
