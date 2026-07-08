@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { z } from 'zod';
 import { Decimal } from '@prisma/client/runtime/library';
 import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
+import { logAction, AuditActions } from '@/lib/audit-log';
 
 const updateMonitoringSchema = z.object({
   cpvCodes: z.array(z.string().max(20).regex(/^\d{8}-\d$/, 'Format CPV invalid')).max(50, 'Maximum 50 CPV codes').optional(),
@@ -60,6 +61,18 @@ export async function PATCH(
           ? new Decimal(data.maxValue)
           : null,
       },
+    });
+
+    // Audit: changing CPV codes / keywords / value thresholds alters which tenders
+    // match this org — a business-meaningful configuration change worth a trail.
+    await logAction({
+      userId: session.user.id,
+      userEmail: session.user.email,
+      action: AuditActions.MONITORING_UPDATE,
+      resource: 'organization',
+      resourceId: id,
+      details: data,
+      request,
     });
 
     return NextResponse.json({

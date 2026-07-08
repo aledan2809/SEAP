@@ -44,6 +44,7 @@ export const AuditActions = {
   ORG_SWITCH: 'organization.switch',
   ORG_INVITE: 'organization.invite',
   ORG_INVITE_ACCEPT: 'organization.invite.accept',
+  ORG_INVITE_REVOKE: 'organization.invite.revoke',
 
   // Tender
   TENDER_VIEW: 'tender.view',

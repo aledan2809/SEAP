@@ -250,6 +250,18 @@ export async function DELETE(req: NextRequest) {
       where: { id: invitationId },
     });
 
+    // Audit: revoking a pending invitation is a team-management action — the
+    // inverse of ORG_INVITE, which is already logged on create.
+    await logAction({
+      userId: user.id,
+      userEmail: session.user.email,
+      action: AuditActions.ORG_INVITE_REVOKE,
+      resource: 'invitation',
+      resourceId: invitationId,
+      details: { email: invitation.email, role: invitation.role, organizationId: invitation.organizationId },
+      request: req,
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[Invitations DELETE] Error:', error);
