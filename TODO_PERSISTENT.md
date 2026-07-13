@@ -30,8 +30,12 @@
 > de oportunitate trimise, 0 erori, 8.5s** — conexiunea end-to-end confirmată; (2) ambele cron-uri
 > instalate în crontab-ul VPS2 (log: `/var/log/seap-cron.log`), același program ca pe Vercel;
 > (3) dashboard-ul (nou implementat pe date reale) confirmă: 1441 monitorizate, +418 noi în 24h.
-> **Igienă rămasă (minor)**: `CRON_SECRET` e slab (`seap-cron-secret-2026`) — de rotit la o sesiune
-> viitoare (necesită update .env + crontab + pm2 restart, coordonat).
+> **Igienă rămasă (minor)**: ~~`CRON_SECRET` e slab (`seap-cron-secret-2026`) — de rotit~~ **DONE 2026-07-12** —
+> rotit la `openssl rand -hex 32` (64 hex) pe `.env` + `.next/standalone/.env` (copia VIE, editată separat —
+> vezi L317) + crontab VPS2 (liniile 47-48) + pm2 restart + local `.env` + `Master/credentials/.env.seap`
+> (adăugat, nu-l avea). Verificat live: OLD→401, NEW→200 pe `/api/scan` + `/deadline-check`. Backups
+> `.bak-2026-07-12-cron-rotate`. Finding latent → chip: deploy SEAP nu copiază `.env` în standalone (rebuild
+> ar șterge env server-side → 503).
 > **Lecție**: la orice migrare de pe Vercel, inventariază `vercel.json crons` și recrează-le pe țintă —
 > de verificat și celelalte proiecte VVPS-migrate.
 
