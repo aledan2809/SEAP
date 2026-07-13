@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendDeadlineAlerts } from '@/lib/email/notifications';
 import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
+import { verifyCronAuth } from '@/lib/cron-auth';
 
 /**
  * API Route: /api/notifications/deadline-check
@@ -29,14 +30,13 @@ export async function POST(request: NextRequest) {
 
     // Verify cron secret — fail-secure: reject if CRON_SECRET is not configured
     const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
 
-    if (!cronSecret) {
+    if (!process.env.CRON_SECRET) {
       console.error('[DEADLINE-CHECK] CRON_SECRET not configured. Rejecting request.');
       return NextResponse.json({ error: 'Service not configured' }, { status: 503 });
     }
 
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (!verifyCronAuth(authHeader)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -311,8 +311,8 @@ Sursă: `SEAP/Reports/INTROSPECTION-2026-06-20/`
   - 🗣️ *Pe înțelesul tău:* Câteva biblioteci de actualizat, niciuna critică. Le urc țintit, fără să forțez, ca să rămână totul funcțional.
 - [ ] 🟡 **GDPR landing** (scor 10, parțial fals-negativ — GA detectat de scanner dar absent în cod → vezi nota cross-cutting GA-edge) + confirmă sursa GA.
   - 🗣️ *Pe înțelesul tău:* Scorul mic e parțial alarmă falsă (aplicația logată e deja conformă), dar pe pagina publică lipsește bannerul de cookie. Confirmă de unde vine urmărirea (nu e în cod) și o punem la punct.
-- [ ] 🟢 (opțional) compare timing-safe pe secret webhook.
-  - 🗣️ *Pe înțelesul tău:* O întărire fină a verificării unei chei interne, opțională. Reduce un risc teoretic; nu e urgentă.
+- [x] 🟢 compare timing-safe pe secret webhook — **DONE 2026-07-13**. Helper `src/lib/cron-auth.ts` (`verifyCronAuth` — SHA-256 pe ambele părți + `timingSafeEqual`, fail-secure) înlocuiește cele 3 compare-uri `===`/`!==` directe (`scan/route.ts` GET+POST + `deadline-check`). Bonus: închide bug latent „Bearer undefined" din scan când `CRON_SECRET` lipsea. Teste: cron-auth 7/7 + regresie auth-bypass/scan 13/13. tsc-clean.
+  - 🗣️ *Pe înțelesul tău:* Cheia internă de cron se verifică acum în timp constant (nu mai poate fi „ghicită" prin cronometrare) și e imună dacă secretul lipsește din config. Am prins și un mic bug de securitate pe drum.
 - _Solid: 0 SQLi, rute mutante session-guarded, admin requireAdmin, CSRF fail-closed, CSP strict, integrare Legal Hub reală._
 - _💡 Strategic (din 01): „bid-dossier generator" — patronul deja face manual dosare pentru contracte 10M+ RON; cea mai mare oportunitate de produs._
 

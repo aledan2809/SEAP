@@ -9,6 +9,7 @@ import {
 import { logAction, AuditActions } from '@/lib/audit-log';
 import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
 import { prisma } from '@/lib/db';
+import { verifyCronAuth } from '@/lib/cron-auth';
 
 /**
  * SEAP Scanner + Email Notifications
@@ -97,8 +98,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify Vercel cron secret
-    const cronSecret = request.headers.get('authorization');
-    const isCron = cronSecret === `Bearer ${process.env.CRON_SECRET}`;
+    const isCron = verifyCronAuth(request.headers.get('authorization'));
 
     if (!isCron) {
       // Allow authenticated admin users — verify role from DB
@@ -141,8 +141,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cronSecret = request.headers.get('authorization');
-    const isCron = cronSecret === `Bearer ${process.env.CRON_SECRET}`;
+    const isCron = verifyCronAuth(request.headers.get('authorization'));
 
     if (!isCron) {
       const session = await auth();
